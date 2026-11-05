@@ -1,0 +1,68 @@
+# 虛擬遊戲課：資工人出社會模擬
+
+課程：數位孿生與 VR 虛擬場景製作（大三上）。登記在 D:\claude\work\PROJECTS.md（id: virtual-game）。
+
+## 交期
+- 下週（約 11/10）：人物模型——第 7 週（生成＋AI 綁骨，交預覽動作錄影＋FBX）、第 9 週（W 走 A/D 轉，交錄影＋Animator 截圖）
+- 2027 年 1 月：完整遊戲
+- 只用免費工具；Meshy、Tripo 免費版都不能下載模型，不要再走那兩條
+
+## 角色流水線（已完成，可重跑）
+1. `IMG_4683.jpg` → Gemini 改畫成 T-pose 卡通 → `character_tpose.jpg`
+2. Hugging Face 上的 TRELLIS（免費、免登入）→ `character/character_trellis.glb`（4,708 面）
+3. Blender 4.5（免安裝版在 C:\Users\s1070\tools）：
+   - `character/prep_for_mixamo.py`：焊接接縫、1.8m、腳踩地
+   - `character/auto_rig.py`：Mixamo 命名骨架＋自動權重 → `character/Player.fbx`
+   - Mixamo 線上綁骨一直回「Unknown error while generating motion」，所以改在本機綁
+4. Unity：`VirtualGame/`（6.3，URP，Input System）
+   - `-executeMethod BatchSetup.SetupCharacter`：設 Humanoid、建 `Assets/Course/Scenes/Week9_Walk.unity`、掛狀態機與 SimpleWalker
+   - 預覽：`character/walk_preview.png`
+
+## 還要人工做的
+- 第 7 週交付：錄一段角色動起來的影片（可用 Week9_Walk 場景錄）
+- 第 9 週交付：開 Week9_Walk 按 ▶，錄 W 走／放開停／A/D 轉，再截 Animator 視窗
+- 上課抽問要能逐行解釋 SimpleWalker、ClickSelector
+
+## 遊戲設計：《工程師的一天》
+目標：讓非資工系的人「感同身受」資工系畢業後的上班日常，寫實為主。
+
+**玩法**：玩家操作自己的角色，在辦公室過完一天（09:00–18:00 壓縮成約 10 分鐘）。任務會一個一個跳出來，每個選擇影響四個數值：**進度、壓力、主管信任、生活**。
+
+**一天的事件（都取材自真實工作）**
+| 時間 | 事件 | 玩家做什麼 |
+|---|---|---|
+| 09:30 | Daily Standup | 走到會議室，選「老實說卡住了」或「快好了」（說謊會在下午爆炸） |
+| 10:00 | 修 Bug 單 | 點自己的電腦 → 小遊戲：從 5 行程式碼挑出錯的那行 |
+| 11:00 | Slack 訊息狂跳 | 一邊修 Bug 一邊被打斷，決定回不回 |
+| 13:30 | PM 改需求 | 早上做的要重做，選接受、協商或硬推 |
+| 15:00 | Code Review | 資深同事留言，選虛心改或爭論 |
+| 17:30 | 上線前出事 | 選準時下班（明天被罵）或加班修 |
+| 結算 | 一天總結 | 依四個數值給結局：準時下班／加班到 22:00／爆肝；附一句真實數據或心聲 |
+
+**直接沿用課程裡已經寫好的東西**
+- 走路：SimpleWalker＋HeroAnimator（第 9 週）
+- 點電腦、咖啡機、PM 的座位：ClickSelector＋InfoTag（第 8 週）
+- 撞牆、第一人稱：第 10 週的 Character Controller
+- 分數、勝利文字：Roll a Ball 的計分 UI
+
+**要新寫的（盡量小）**
+- `DayClock`：遊戲時鐘，到時間就觸發事件
+- `EventDialog`：事件對話框（題目＋2～3 個選項，選完改數值）
+- `Stats`：四個數值＋結局判定
+- 事件內容放一個 JSON，改劇情不用改程式
+
+**場景**：辦公室（工位、會議室、茶水間）。先用 Unity 方塊拼出格局，再換成 Asset Store 免費辦公室素材或自己掃描的物件。
+
+## 里程碑
+- ✅ 11/3 第一版可玩：`Assets/Course/Scenes/Office.unity`（選單 Course/4. 可重建）
+  - 程式：`Scripts/Game/DayManager.cs`（時鐘＋四數值＋事件＋結局）、`EventDialog.cs`、`PlaceZone.cs`
+  - 劇情：`Resources/events.json`（9 個事件、4 種結局；說謊會在 16:00 被抓包）
+  - 尚未在 Play 模式實測，只驗過編譯和畫面
+- ✅ 11/3 改版（依使用者回饋＋參考作品「教師上班日常」系列）：
+  - 題目改成不需要程式知識的日常抉擇，專有名詞都用白話解釋；選完會顯示數值變化
+  - 開場說明卡、結尾「你不是一個人，辛苦了」＋安心專線 1925
+  - 畫面：暖色光、後製（Bloom／暗角／ACES）、桌椅螢幕盆栽白板、出勤卡 HUD（四條數值條）、便條紙任務、地上黃色光圈指路、紙張對話框
+- 11 月中：實際試玩一輪、調時間節奏與數值
+- 11 月底：加互動物件（咖啡機降壓力、看手機等）、事件隨機化，每天不一樣
+- 12 月：換美術、加音效（鍵盤聲、Slack 提示音）、結局畫面
+- 1 月：找非資工系的同學試玩、調整、錄示範影片、交件

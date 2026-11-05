@@ -1,0 +1,41 @@
+# Unity
+[Ll]ibrary/
+[Tt]emp/
+[Oo]bj/
+[Bb]uild/
+[Bb]uilds/
+[Ll]ogs/
+[Uu]ser[Ss]ettings/
+.vs/
+*.csproj
+*.sln
+*.slnx
+# Node / web
+node_modules/
+dist/
+.next/
+# Python
+__pycache__/
+.venv/
+# Secrets - never upload
+.env
+.env.*
+!.env.example
+vault.json
+*.pem
+*.key
+# Big binaries / caches
+*.apk
+*.exe
+*.msi
+*.zip
+*.7z
+*.log
+.backup/
+# Third-party tools (download again if needed)
+scrcpy-master/
+scrcpy-win64-*/
+debug/
+
+*.mp4
+*.mov
