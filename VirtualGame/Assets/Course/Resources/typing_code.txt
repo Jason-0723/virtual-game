@@ -1,0 +1,424 @@
+// ===== DayManager.cs =====
+using System;
+using System.Collections.Generic;
+using UnityEngine;
+using UnityEngine.SceneManagement;
+using UnityEngine.UI;
+
+// 《工程師的一天》主控：遊戲時鐘、四個數值、依時間觸發 events.json 的事件、結局
+public class DayManager : MonoBehaviour
+{
+    [Serializable] public class Option { public string id, log, text, result, setFlag; public int progress, stress, trust, life, debt; }
+    [Serializable]
+    public class GameEvent
+    {
+        public int at, minAt, maxAt;                   // main 用 at；pool 用 minAt～maxAt（0 = 不限）
+        public string title, place, text, onlyIfFlag;
+        public float weight, debtWeight, stressWeight, distrustWeight;   // pool 抽籤權重
+        public bool bug;
+        public string[] causedBy;                      // 後果事件：是哪些選項 id 造成的（結局時間軸畫紅線）
+        public Option[] options;
+    }
+    [Serializable] class EventList { public string intro; public int[] slots; public GameEvent[] main, pool; }
+
+    // 半動態排程：main 固定時間一定發生，slots 的時間點從 pool 依數值加權抽一件
+    struct Slot { public int at; public GameEvent fixedEvent; }
+    readonly List<Slot> schedule = new List<Slot>();
+    readonly HashSet<GameEvent> used = new HashSet<GameEvent>();
+
+    public static DayManager Instance;
+
+    public EventDialog dialog;
+    public Text clockText;                  // 出勤卡上的大時鐘
+    public Image[] statBars;                // 進度、壓力、主管信任、生活（Filled 圖片）
+    public Text objectiveText;
+    public GameObject objectiveNote;        // 黃色便條紙，沒任務時藏起來
+    public TypingTerminal typing;
+    public float minutesPerSecond = 0.9f;   // 09:00–18:00 約 10 分鐘玩完
+    public int startMinute = 9 * 60, endMinute = 18 * 60;
+
+    int progress = 0, stress = 20, trust = 50, life = 50;
+    int techDebt = 0;                       // 技術債：玩家看不到，貪快會累積，下午 Bug 變多；結局才公開
+    public int TechDebt => techDebt;
+    public int Progress => progress;
+    float clock;
+    int next;
+    GameEvent pending;                      // 等玩家走到指定地點的事件
+    PlaceZone pendingZone;
+    bool ended;
+    readonly HashSet<string> flags = new HashSet<string>();
+    EventList data;
+
+    // 給自動試玩測試用
+    public bool Ended => ended;
+    public string PendingPlace => pending?.place;
+
+    void Awake()
+    {
+        Instance = this;
+        clock = startMinute;
+        data = JsonUtility.FromJson<EventList>(Resources.Load<TextAsset>("events").text);
+        foreach (GameEvent e in data.main) schedule.Add(new Slot { at = e.at, fixedEvent = e });
+        foreach (int t in data.slots) schedule.Add(new Slot { at = t });
+        schedule.Sort((a, b) => a.at.CompareTo(b.at));
+
+        // 標題用明體（襯線），其他沿用預設黑體；字型取自系統，不用另外匯入
+        Font serif = Font.CreateDynamicFontFromOSFont(new[] { "PMingLiU", "MingLiU", "Noto Serif TC" }, 40);
+        foreach (Text t in FindObjectsByType<Text>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+            if (t.name.StartsWith("Title")) t.font = serif;
+    }
+
+    void Start()
+    {
+        objectiveNote.SetActive(false);
+        RefreshHud();
+        dialog.Show("工程師的一天", data.intro, new[] { "打卡上班" }, _ => { });
+    }
+
+    void Update()
+    {
+        SetWalking(!ended && !dialog.IsOpen && !(typing && typing.IsOpen));  // 對話時鏡頭在拍臉、打字時坐在位子上，角色不能走開
+        if (ended || dialog.IsOpen) return;  // 看對話框時時間暫停
+        clock += minutesPerSecond * Time.deltaTime;
+
+        if (stress >= 100) { End(); return; }
+        if (pending == null && next < schedule.Count && schedule[next].at <= clock)
+        {
+            Slot s = schedule[next++];
+            GameEvent e = s.fixedEvent ?? Draw();
+            if (e != null) Trigger(e);
+        }
+        if (clock >= endMinute) { End(); return; }   // 18:00 到了就結算，沒處理的事件算沒做
+        RefreshHud();
+    }
+
+    // 從 pool 抽一件：時間範圍內、條件符合、今天還沒出現過；權重越高越容易被抽到
+    GameEvent Draw()
+    {
+        var candidates = new List<GameEvent>();
+        var weights = new List<float>();
+        foreach (GameEvent e in data.pool)
+        {
+            if (used.Contains(e) || clock < e.minAt || (e.maxAt > 0 && clock > e.maxAt)) continue;
+            if (!string.IsNullOrEmpty(e.onlyIfFlag) && !flags.Contains(e.onlyIfFlag)) continue;
+            candidates.Add(e);
+            weights.Add(Weight(e, techDebt, stress, trust));
+        }
+        int i = WeightedPick(weights, UnityEngine.Random.value);
+        if (i < 0) return null;
+        used.Add(candidates[i]);
+        return candidates[i];
+    }
+
+    // 技術債越高，bug 事件越容易抽到；壓力高容易抽到喘口氣；主管信任低容易被約談
+    public static float Weight(GameEvent e, int debt, int stress, int trust) =>
+        Mathf.Max(0, e.weight + e.debtWeight * debt / 10f + e.stressWeight * stress / 10f + e.distrustWeight * (100 - trust) / 10f);
+
+    // roll 是 0～1 的亂數；全部權重都是 0 就回 -1
+    public static int WeightedPick(List<float> weights, float roll)
+    {
+        float total = 0;
+        foreach (float w in weights) total += w;
+        if (total <= 0) return -1;
+        float r = roll * total;
+        for (int i = 0; i < weights.Count; i++)
+        {
+            if (r < weights[i]) return i;
+            r -= weights[i];
+        }
+        return weights.Count - 1;   // roll = 1 的邊界
+    }
+
+    void Trigger(GameEvent e)
+    {
+        if (!string.IsNullOrEmpty(e.onlyIfFlag) && !flags.Contains(e.onlyIfFlag)) return;
+        if (string.IsNullOrEmpty(e.place)) { Open(e); return; }
+        pending = e;
+        pendingZone = Array.Find(FindObjectsByType<PlaceZone>(FindObjectsSortMode.None), z => z.placeId == e.place);
+        if (pendingZone && pendingZone.marker) pendingZone.marker.SetActive(true);
+        objectiveText.text = e.title + "\n→ 請到：" + (pendingZone ? pendingZone.displayName : e.place);
+        objectiveNote.SetActive(true);
+    }
+
+    public void EnterPlace(string placeId)
+    {
+        if (pending == null || pending.place != placeId || dialog.IsOpen) return;
+        GameEvent e = pending;
+        pending = null;
+        if (pendingZone && pendingZone.marker) pendingZone.marker.SetActive(false);
+        objectiveNote.SetActive(false);
+        Open(e);
+    }
+
+    void Open(GameEvent e)
+    {
+        string[] labels = Array.ConvertAll(e.options, o => o.text);
+        dialog.Show(Clock(clock) + "　" + e.title, e.text, labels, i => Apply(e.options[i]));
+    }
+
+    void Apply(Option o)
+    {
+        progress = Mathf.Clamp(progress + o.progress, 0, 100);
+        stress = Mathf.Clamp(stress + o.stress, 0, 100);
+        trust = Mathf.Clamp(trust + o.trust, 0, 100);
+        life = Mathf.Clamp(life + o.life, 0, 100);
+        techDebt = Mathf.Clamp(techDebt + o.debt, 0, 100);   // 不顯示在 HUD，也不放進 Delta
+        if (!string.IsNullOrEmpty(o.setFlag)) flags.Add(o.setFlag);
+        RefreshHud();
+        if (!string.IsNullOrEmpty(o.result)) dialog.Show("後來⋯⋯", o.result + "\n\n" + Delta(o), new[] { "繼續" }, _ => { });
+    }
+
+    // 讓玩家看懂這個選擇改變了什麼
+    static string Delta(Option o)
+    {
+        var parts = new List<string>();
+        void Add(string n, int v) { if (v != 0) parts.Add(n + (v > 0 ? " +" : " ") + v); }
+        Add("進度", o.progress); Add("壓力", o.stress); Add("主管信任", o.trust); Add("生活", o.life);
+        return string.Join("　", parts);
+    }
+
+    void End()
+    {
+        ended = true;
+        objectiveNote.SetActive(false);
+        if (pendingZone && pendingZone.marker) pendingZone.marker.SetActive(false);
+        string title, body;
+        if (stress >= 100)
+        {
+            title = "結局：爆肝";
+            body = "壓力破表。你盯著螢幕，什麼都看不進去。\n\n軟體業的過勞不是傳說，健康檢查上的紅字也不是。";
+        }
+        else if (flags.Contains("overtime"))
+        {
+            title = "結局：加班到 22:00";
+            body = "問題修好了，但捷運上已經沒什麼人。明天 09:30 還有站立會議。\n\n很多工程師的下班時間寫在合約上，不在現實裡。";
+        }
+        else if (progress >= 60 && trust >= 50)
+        {
+            title = "結局：準時下班";
+            body = "進度跟上了，主管也信任你。18:00，你闔上筆電。\n\n這樣的日子存在，但需要誠實、溝通，和一點運氣。";
+        }
+        else
+        {
+            title = "結局：準時下班，但⋯⋯";
+            body = "你準時離開，但進度落後，手機裡的訊息一直跳。明天要先面對主管。\n\n下班不等於工作結束，這是很多人的日常。";
+        }
+        body += $"\n\n進度 {progress}　壓力 {stress}　主管信任 {trust}　生活 {life}"
+              + $"\n技術債 {techDebt}（今天一直沒顯示的數字：貪快留下的程式，之後都要有人還）"
+              + "\n\n你不是一個人，辛苦了。\n累了，請找人說說話：衛福部安心專線 1925";
+        dialog.Show(title, body, new[] { "再過一天" }, _ => SceneManager.LoadScene(SceneManager.GetActiveScene().name));
+    }
+
+    public void AddProgress(int n)
+    {
+        progress = Mathf.Clamp(progress + n, 0, 100);
+        RefreshHud();
+    }
+
+    void SetWalking(bool on)
+    {
+        if (walker == null) walker = FindFirstObjectByType<SimpleWalker>();
+        if (walker == null || walker.enabled == on) return;
+        walker.enabled = on;
+        if (!on) walker.GetComponent<Animator>().SetBool("isWalking", false);   // 停用時動畫不會自己停
+    }
+    SimpleWalker walker;
+
+    void RefreshHud()
+    {
+        clockText.text = Clock(clock);
+        int[] v = { progress, stress, trust, life };
+        for (int i = 0; i < statBars.Length; i++) statBars[i].fillAmount = v[i] / 100f;
+    }
+
+    static string Clock(float minute) => $"{(int)minute / 60:00}:{(int)minute % 60:00}";
+}
+
+
+// ===== TypingTerminal.cs =====
+using UnityEngine;
+using UnityEngine.InputSystem;
+using UnityEngine.UI;
+
+// 打程式碼小遊戲：站在自己座位按 E 開始，之後按任何鍵螢幕就多打出 3～5 個字
+// 打出來的是這個遊戲自己的 C# 程式（OfficeBuilder 建場景時把幾個 .cs 合併成 Resources/typing_code.txt）
+public class TypingTerminal : MonoBehaviour
+{
+    public GameObject panel;        // 螢幕畫面
+    public Text codeText;
+    public Text fileText;           // 視窗標題：現在打到哪個檔案
+    public Image barFill;           // 這份程式完成度
+    public GameObject hint;         // 「按 E 開始工作」
+    public PlaceZone desk;
+    public EventDialog dialog;
+    public int charsPerProgress = 60;   // 每打這麼多字，進度 +1
+    public int visibleLines = 16;
+
+    string code;
+    int typed;
+    int sinceProgress;
+
+    public bool IsOpen => panel.activeSelf;
+
+    void Awake()
+    {
+        code = Resources.Load<TextAsset>("typing_code").text.Replace("\r", "");
+        // 等寬字型像真的編輯器；中文註解借正黑體
+        codeText.font = Font.CreateDynamicFontFromOSFont(new[] { "Consolas", "Microsoft JhengHei", "Courier New" }, 24);
+        panel.SetActive(false);
+        hint.SetActive(false);
+    }
+
+    void Update()
+    {
+        DayManager day = DayManager.Instance;
+        bool canWork = desk.PlayerInside && !dialog.IsOpen && !day.Ended;
+        Keyboard kb = Keyboard.current;
+
+        if (!IsOpen)
+        {
+            hint.SetActive(canWork);
+            if (canWork && kb != null && kb.eKey.wasPressedThisFrame) Open();
+            return;
+        }
+        if (!canWork || (kb != null && kb.escapeKey.wasPressedThisFrame)) { Close(); return; }
+        // 專案只開新版 Input System，舊的 Input.anyKeyDown 會報錯；這行是同樣的意思
+        if (kb != null && kb.anyKey.wasPressedThisFrame) TypeKey(Random.Range(3, 6));
+    }
+
+    public void Open()
+    {
+        panel.SetActive(true);
+        hint.SetActive(false);
+        Refresh();
+    }
+
+    public void Close() => panel.SetActive(false);
+
+    public void TypeKey(int chars)
+    {
+        typed += chars;
+        sinceProgress += chars;
+        if (typed >= code.Length) typed = 0;          // 打完就從頭再來一份
+        while (sinceProgress >= charsPerProgress)
+        {
+            sinceProgress -= charsPerProgress;
+            DayManager.Instance.AddProgress(1);
+        }
+        Refresh();
+    }
+
+    void Refresh()
+    {
+        string shown = code.Substring(0, typed);
+        // 只顯示最後幾行，像編輯器一直往下捲
+        int cut = shown.Length;
+        for (int n = 0; n < visibleLines && cut > 0; n++) cut = shown.LastIndexOf('\n', cut - 1);
+        codeText.text = (shown.Length == 0 ? "" : shown.Substring(cut + 1)) + "▌";
+        // 標題列顯示目前打到的檔名（從完整程式找，檔名才打一半時也不會出錯）
+        int header = code.LastIndexOf("// ===== ", Mathf.Max(0, typed - 1));
+        int nameEnd = header < 0 ? -1 : code.IndexOf(" =====", header + 9);
+        fileText.text = (nameEnd < 0 ? "" : code.Substring(header + 9, nameEnd - header - 9) + " — ") + "Visual Studio Code";
+        barFill.fillAmount = (float)typed / code.Length;
+    }
+}
+
+
+// ===== EventDialog.cs =====
+using System;
+using UnityEngine;
+using UnityEngine.UI;
+
+// 事件對話框：標題＋內文＋最多 3 個選項，選完回呼
+public class EventDialog : MonoBehaviour
+{
+    public GameObject panel;
+    public Text titleText;
+    public Text bodyText;
+    public Button[] optionButtons;
+
+    public bool IsOpen => panel.activeSelf;
+
+    void Awake()
+    {
+        panel.SetActive(false);
+    }
+
+    public void Show(string title, string body, string[] options, Action<int> onPick)
+    {
+        titleText.text = title;
+        bodyText.text = body;
+        for (int i = 0; i < optionButtons.Length; i++)
+        {
+            Button b = optionButtons[i];
+            b.gameObject.SetActive(i < options.Length);
+            if (i >= options.Length) continue;
+            b.GetComponentInChildren<Text>(true).text = options[i];   // true：面板還關著時也找得到
+            b.onClick.RemoveAllListeners();
+            int pick = i;   // 迴圈變數要先複製，不然每顆按鈕都會拿到最後一個 i
+            b.onClick.AddListener(() => { panel.SetActive(false); onPick(pick); });
+        }
+        panel.SetActive(true);
+    }
+}
+
+
+// ===== CameraDirector.cs =====
+using Unity.Cinemachine;
+using UnityEngine;
+
+// 鏡頭導演：平常用背後斜上方的跟隨鏡頭，對話框打開時切到臉部特寫
+// 兩台都是 Cinemachine 虛擬鏡頭，切換的過渡由 Main Camera 上的 CinemachineBrain 處理；玩家不能自己轉鏡頭
+public class CameraDirector : MonoBehaviour
+{
+    public CinemachineCamera followCam;
+    public CinemachineCamera faceCam;
+    public EventDialog dialog;
+    public Animator player;
+
+    void Start()
+    {
+        // 臉部特寫對準頭骨；找不到頭骨（不是 Humanoid）就對準角色身上 1.6 公尺高的位置
+        Transform head = player.GetBoneTransform(HumanBodyBones.Head);
+        if (head == null)
+        {
+            head = new GameObject("HeadTarget").transform;
+            head.SetParent(player.transform, false);
+            head.localPosition = new Vector3(0, 1.6f, 0);
+        }
+        faceCam.LookAt = head;
+        faceCam.gameObject.SetActive(false);
+    }
+
+    void Update()
+    {
+        // 同優先度時，最後啟用的鏡頭會接手
+        bool talk = dialog.IsOpen;
+        if (faceCam.gameObject.activeSelf != talk) faceCam.gameObject.SetActive(talk);
+    }
+}
+
+
+// ===== PlaceZone.cs =====
+using UnityEngine;
+
+// 地點觸發區（會議室、座位、PM 座位⋯）：玩家在區域內就通知 DayManager
+[RequireComponent(typeof(Collider))]
+public class PlaceZone : MonoBehaviour
+{
+    public string placeId;        // 對應 events.json 的 place
+    public string displayName;    // 畫面上顯示「請到：xxx」
+    public GameObject marker;     // 地上的黃色光圈，有任務時才亮
+
+    public bool PlayerInside { get; private set; }   // 打程式碼小遊戲要站在座位才能開始
+
+    void OnTriggerEnter(Collider other) { if (other.GetComponent<SimpleWalker>() != null) PlayerInside = true; }
+    void OnTriggerExit(Collider other) { if (other.GetComponent<SimpleWalker>() != null) PlayerInside = false; }
+
+    void OnTriggerStay(Collider other)   // Stay：事件跳出時人已經站在那裡也算
+    {
+        if (other.GetComponent<SimpleWalker>() != null) DayManager.Instance.EnterPlace(placeId);
+    }
+}
+
+

@@ -38,6 +38,19 @@ public class PlaythroughTest
             dialog.optionButtons[0].onClick.Invoke();
             yield return new WaitForSecondsRealtime(1.5f);
             Snap("follow");
+
+            // 打程式碼：走到座位 → 出現「按 E」提示 → 打 100 下，進度要上升
+            TypingTerminal typing = UnityEngine.Object.FindFirstObjectByType<TypingTerminal>();
+            yield return WalkInto(player, "Desk");
+            Assert.IsTrue(typing.hint.activeSelf, "站在座位卻沒有「按 E 開始工作」");
+            int before = day.Progress;
+            typing.Open();
+            for (int k = 0; k < 100; k++) typing.TypeKey(4);
+            yield return null;
+            Snap("typing");
+            Assert.Greater(day.Progress, before, "打字沒有讓進度上升");
+            Assert.IsTrue(typing.codeText.text.Contains("class"), "螢幕上沒有打出程式碼");
+            typing.Close();
         }
         day.minutesPerSecond = 60f;   // 一秒過一小時
 
@@ -57,14 +70,8 @@ public class PlaythroughTest
             }
             else if (day.PendingPlace != null)
             {
-                PlaceZone zone = Array.Find(UnityEngine.Object.FindObjectsByType<PlaceZone>(FindObjectsSortMode.None), z => z.placeId == day.PendingPlace);
-                Assert.IsNotNull(zone, "events.json 的地點在場景裡找不到：" + day.PendingPlace);
-                // 像玩家走進去一樣：先站到區域旁邊，再用 CharacterController 走進去
-                CharacterController cc = player.GetComponent<CharacterController>();
-                cc.enabled = false;
-                player.transform.position = new Vector3(zone.transform.position.x, 0.05f, zone.transform.position.z) - Vector3.forward * 0.1f;
-                cc.enabled = true;
-                cc.Move(Vector3.forward * 0.1f);
+                yield return WalkInto(player, day.PendingPlace);
+                continue;
             }
             yield return null;
         }
@@ -76,10 +83,28 @@ public class PlaythroughTest
         yield return new ExitPlayMode();
     }
 
+    // 像玩家走進去一樣：先站到區域旁邊，再用 CharacterController 走進去
+    static IEnumerator WalkInto(GameObject player, string placeId)
+    {
+        PlaceZone zone = Array.Find(UnityEngine.Object.FindObjectsByType<PlaceZone>(FindObjectsSortMode.None), z => z.placeId == placeId);
+        Assert.IsNotNull(zone, "events.json 的地點在場景裡找不到：" + placeId);
+        CharacterController cc = player.GetComponent<CharacterController>();
+        cc.enabled = false;
+        player.transform.position = new Vector3(zone.transform.position.x, 0.05f, zone.transform.position.z) - Vector3.forward * 0.1f;
+        cc.enabled = true;
+        cc.Move(Vector3.forward * 0.1f);
+        yield return new WaitForFixedUpdate();
+        yield return null;
+    }
+
     // 主鏡頭畫面存成 專案資料夾/screenshots/<名稱>.png（不含 UI）
     static void Snap(string name)
     {
         Camera cam = Camera.main;
+        Canvas canvas = UnityEngine.Object.FindFirstObjectByType<Canvas>();
+        canvas.renderMode = RenderMode.ScreenSpaceCamera;   // 讓 UI 也拍得進去
+        canvas.worldCamera = cam;
+        canvas.planeDistance = 0.5f;
         var rt = new RenderTexture(960, 540, 24);
         cam.targetTexture = rt;
         cam.Render();
@@ -87,6 +112,7 @@ public class PlaythroughTest
         var tex = new Texture2D(960, 540, TextureFormat.RGB24, false);
         tex.ReadPixels(new Rect(0, 0, 960, 540), 0, 0);
         cam.targetTexture = null;
+        canvas.renderMode = RenderMode.ScreenSpaceOverlay;
         RenderTexture.active = null;
         System.IO.Directory.CreateDirectory("../screenshots");
         System.IO.File.WriteAllBytes($"../screenshots/{name}.png", tex.EncodeToPNG());

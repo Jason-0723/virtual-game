@@ -32,12 +32,14 @@ public class DayManager : MonoBehaviour
     public Image[] statBars;                // 進度、壓力、主管信任、生活（Filled 圖片）
     public Text objectiveText;
     public GameObject objectiveNote;        // 黃色便條紙，沒任務時藏起來
+    public TypingTerminal typing;
     public float minutesPerSecond = 0.9f;   // 09:00–18:00 約 10 分鐘玩完
     public int startMinute = 9 * 60, endMinute = 18 * 60;
 
     int progress = 0, stress = 20, trust = 50, life = 50;
     int techDebt = 0;                       // 技術債：玩家看不到，貪快會累積，下午 Bug 變多；結局才公開
     public int TechDebt => techDebt;
+    public int Progress => progress;
     float clock;
     int next;
     GameEvent pending;                      // 等玩家走到指定地點的事件
@@ -74,7 +76,7 @@ public class DayManager : MonoBehaviour
 
     void Update()
     {
-        SetWalking(!ended && !dialog.IsOpen);  // 對話時鏡頭在拍臉，角色不能走開
+        SetWalking(!ended && !dialog.IsOpen && !(typing && typing.IsOpen));  // 對話時鏡頭在拍臉、打字時坐在位子上，角色不能走開
         if (ended || dialog.IsOpen) return;  // 看對話框時時間暫停
         clock += minutesPerSecond * Time.deltaTime;
 
@@ -204,6 +206,12 @@ public class DayManager : MonoBehaviour
               + $"\n技術債 {techDebt}（今天一直沒顯示的數字：貪快留下的程式，之後都要有人還）"
               + "\n\n你不是一個人，辛苦了。\n累了，請找人說說話：衛福部安心專線 1925";
         dialog.Show(title, body, new[] { "再過一天" }, _ => SceneManager.LoadScene(SceneManager.GetActiveScene().name));
+    }
+
+    public void AddProgress(int n)
+    {
+        progress = Mathf.Clamp(progress + n, 0, 100);
+        RefreshHud();
     }
 
     void SetWalking(bool on)

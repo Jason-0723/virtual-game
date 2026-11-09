@@ -25,6 +25,7 @@ public static class OfficeBuilder
     public static void Build()
     {
         font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");   // 動態字型，中文會借用系統字型
+        WriteTypingCode();
         var scene = EditorSceneManager.NewScene(NewSceneSetup.DefaultGameObjects, NewSceneMode.Single);
 
         // ── 材質 ──
@@ -139,6 +140,17 @@ public static class OfficeBuilder
         Debug.Log("[Course] 辦公室場景完成：" + ScenePath + "，按 ▶ 開始上班");
     }
 
+    // 打程式碼小遊戲的內容＝這個遊戲自己的程式（彩蛋）；.cs 不能直接放 Resources，所以合併成 txt
+    static void WriteTypingCode()
+    {
+        const string dir = "Assets/Course/Scripts/Game/";
+        var sb = new System.Text.StringBuilder();
+        foreach (string f in new[] { "DayManager.cs", "TypingTerminal.cs", "EventDialog.cs", "CameraDirector.cs", "PlaceZone.cs" })
+            sb.Append("// ===== ").Append(f).Append(" =====\n").Append(System.IO.File.ReadAllText(dir + f).Replace("\r", "")).Append("\n\n");
+        System.IO.File.WriteAllText("Assets/Course/Resources/typing_code.txt", sb.ToString());
+        AssetDatabase.ImportAsset("Assets/Course/Resources/typing_code.txt");
+    }
+
     static CinemachineCamera VirtualCam(string name, Transform follow, float fov, Vector3 offset, Vector2 screenPos)
     {
         GameObject g = new GameObject(name);
@@ -205,7 +217,7 @@ public static class OfficeBuilder
         note.localRotation = Quaternion.Euler(0, 0, -1.5f);
         Text objective = Label("Objective", note, 26, TextAnchor.MiddleCenter, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(520, 100), Ink);
 
-        Label("Help", root, 20, TextAnchor.LowerLeft, new Vector2(0, 0), new Vector2(30, 24), new Vector2(900, 36), Cream).text = "W 前進　A／D 轉向　走到發光的黃色圓圈";
+        Label("Help", root, 20, TextAnchor.LowerLeft, new Vector2(0, 0), new Vector2(30, 24), new Vector2(900, 36), Cream).text = "W 前進　A／D 轉向　走到發光的黃色圓圈　空檔回座位按 E 工作";
 
         // 對話框（紙張）
         // 對話時鏡頭會切到臉部特寫，所以紙放右邊、背景只微暗，左邊露出角色的臉
@@ -234,7 +246,33 @@ public static class OfficeBuilder
             dlg.optionButtons[i] = btn;
         }
 
+        // 打程式碼小遊戲：深色編輯器畫面＋完成度條；座位旁的提示
+        RectTransform hint = Panel("WorkHint", root, Navy, new Vector2(0.5f, 0), new Vector2(0, 120), new Vector2(420, 64));
+        Label("Text", hint, 26, TextAnchor.MiddleCenter, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(400, 60), Cream).text = "按 E 開始工作";
+        RectTransform term = Panel("Terminal", root, Hex("#1e1e1e"), new Vector2(0.5f, 0.5f), new Vector2(0, -20), new Vector2(1240, 760));
+        Border(term.gameObject);
+        RectTransform titleBar = Panel("TitleBar", term, Hex("#323233"), new Vector2(0.5f, 1), Vector2.zero, new Vector2(1240, 44));
+        Text fileText = Label("File", titleBar, 20, TextAnchor.MiddleCenter, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(1200, 40), Hex("#cccccc"));
+        Text code = Label("Code", term, 24, TextAnchor.UpperLeft, new Vector2(0, 1), new Vector2(30, -62), new Vector2(1180, 590), Hex("#9cdcfe"));
+        code.horizontalOverflow = HorizontalWrapMode.Overflow;   // 程式碼不換行，太長就切掉
+        Label("Hint", term, 20, TextAnchor.MiddleLeft, new Vector2(0, 0), new Vector2(30, 52), new Vector2(800, 30), Hex("#8a8a8a")).text = "隨便按鍵盤就會打出程式　Esc 離開";
+        RectTransform tBarBg = Panel("BarBg", term, Hex("#3c3c3c"), new Vector2(0, 0), new Vector2(30, 18), new Vector2(1180, 16));
+        Image tBar = Panel("BarFill", tBarBg, Hex("#4ec9b0"), new Vector2(0, 0.5f), Vector2.zero, new Vector2(1180, 16)).GetComponent<Image>();
+        tBar.sprite = WhiteSprite();
+        tBar.type = Image.Type.Filled;
+        tBar.fillMethod = Image.FillMethod.Horizontal;
+        TypingTerminal typing = canvasGo.AddComponent<TypingTerminal>();
+        typing.panel = term.gameObject;
+        typing.codeText = code;
+        typing.fileText = fileText;
+        typing.barFill = tBar;
+        typing.hint = hint.gameObject;
+        typing.desk = Object.FindObjectsByType<PlaceZone>(FindObjectsSortMode.None).First(z => z.placeId == "Desk");
+        typing.dialog = dlg;
+        dim.transform.SetAsLastSibling();   // 對話框永遠蓋在最上面
+
         DayManager day = new GameObject("DayManager").AddComponent<DayManager>();
+        day.typing = typing;
         day.dialog = dlg;
         day.clockText = clock;
         day.statBars = bars;
