@@ -1,6 +1,6 @@
 # 虛擬遊戲課：資工人出社會模擬
 
-課程：數位孿生與 VR 虛擬場景製作（大三上）。登記在 D:\claude\work\PROJECTS.md（id: virtual-game）。
+課程：數位孿生與 VR 虛擬場景製作（大三上）。登記在 D:\專案\PROJECTS.md（id: virtual-game）。
 
 ## 交期
 - 下週（約 11/10）：人物模型——第 7 週（生成＋AI 綁骨，交預覽動作錄影＋FBX）、第 9 週（W 走 A/D 轉，交錄影＋Animator 截圖）
