@@ -62,7 +62,17 @@
   - 題目改成不需要程式知識的日常抉擇，專有名詞都用白話解釋；選完會顯示數值變化
   - 開場說明卡、結尾「你不是一個人，辛苦了」＋安心專線 1925
   - 畫面：暖色光、後製（Bloom／暗角／ACES）、桌椅螢幕盆栽白板、出勤卡 HUD（四條數值條）、便條紙任務、地上黃色光圈指路、紙張對話框
-- 11 月中：實際試玩一輪、調時間節奏與數值
-- 11 月底：加互動物件（咖啡機降壓力、看手機等）、事件隨機化，每天不一樣
-- 12 月：換美術、加音效（鍵盤聲、Slack 提示音）、結局畫面
+- ✅ 11/9 進階版必做 5 項（設計：https://claude.ai/artifact/MqmcnQpX9YQobG8KzgXji7 ）
+  1. 鏡頭：Cinemachine 3.1.7，`Follow Cam` 背後斜上方、`Face Cam` 對話時臉部特寫（`CameraDirector.cs`）；對話框移到右邊
+  2. 技術債：`DayManager.techDebt`，玩家看不到，貪快選項會加，結局才公開
+  3. 半動態事件：`events.json` 分 `main`（09:00 站會、12:00 午餐、16:00 說謊被抓包、17:30 上線出事）、`slots`（7 個抽籤時間）、`pool`（10 件，依數值加權；技術債高 → bug 事件多）
+  4. 打程式碼：座位按 E，按任何鍵打出 3～5 字（`TypingTerminal.cs`，內容是遊戲自己的程式）；專案只開新版 Input System，所以用 `Keyboard.current.anyKey` 代替 `Input.anyKeyDown`
+  5. 因果時間軸：每個選擇都記錄，後果事件依 `causedBy` 連紅線（`TimelineView.cs`），按「看結局」接 4 種結局
+- 加分項（核心穩了再做）：Tab 摸魚＋主管巡邏、壓力暗角模糊、日光隨時鐘變、環境音、Slack 訊息卡片
+- 12 月：換美術、加音效、找人試玩調數值
 - 1 月：找非資工系的同學試玩、調整、錄示範影片、交件
+
+## 怎麼改、怎麼測（Unity 要先關掉）
+- 場景全部由 `Editor/OfficeBuilder.cs` 產生：改完跑 `sh build-scene.sh`（或 Unity 選單 Course/4.）
+- 自動試玩：`sh run-tests.sh`，機器人用三種選法玩到結局，順便截圖到 `screenshots/`（臉部特寫、跟隨鏡頭、打字、時間軸）
+- 改劇情只要改 `Resources/events.json`；新選項記得給 `id`，`EventScheduleTest` 會檢查 id 重複和 `causedBy` 打錯
