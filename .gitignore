@@ -41,3 +41,5 @@ debug/
 *.mov
 test-results.xml
 test.log
+build.log
+screenshots/

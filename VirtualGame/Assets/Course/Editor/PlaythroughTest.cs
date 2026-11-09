@@ -28,8 +28,18 @@ public class PlaythroughTest
         EventDialog dialog = UnityEngine.Object.FindFirstObjectByType<EventDialog>();
         GameObject player = GameObject.Find("Player");
         Assert.IsNotNull(day); Assert.IsNotNull(dialog); Assert.IsNotNull(player);
-        day.minutesPerSecond = 60f;   // 一秒過一小時
         var rng = new System.Random(policy);
+
+        day.minutesPerSecond = 0;
+        if (policy == 0)   // 拍兩張鏡頭畫面給人看：開場對話（臉部特寫）、走路（背後跟隨）
+        {
+            yield return new WaitForSecondsRealtime(1.5f);
+            Snap("face");
+            dialog.optionButtons[0].onClick.Invoke();
+            yield return new WaitForSecondsRealtime(1.5f);
+            Snap("follow");
+        }
+        day.minutesPerSecond = 60f;   // 一秒過一小時
 
         float timeout = Time.realtimeSinceStartup + 120f;
         string lastTitle = "";
@@ -62,5 +72,21 @@ public class PlaythroughTest
         StringAssert.StartsWith("結局", dialog.titleText.text);
         Debug.Log($"[Playthrough] policy {policy} → {dialog.titleText.text}");
         yield return new ExitPlayMode();
+    }
+
+    // 主鏡頭畫面存成 專案資料夾/screenshots/<名稱>.png（不含 UI）
+    static void Snap(string name)
+    {
+        Camera cam = Camera.main;
+        var rt = new RenderTexture(960, 540, 24);
+        cam.targetTexture = rt;
+        cam.Render();
+        RenderTexture.active = rt;
+        var tex = new Texture2D(960, 540, TextureFormat.RGB24, false);
+        tex.ReadPixels(new Rect(0, 0, 960, 540), 0, 0);
+        cam.targetTexture = null;
+        RenderTexture.active = null;
+        System.IO.Directory.CreateDirectory("../screenshots");
+        System.IO.File.WriteAllBytes($"../screenshots/{name}.png", tex.EncodeToPNG());
     }
 }

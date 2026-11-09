@@ -55,6 +55,7 @@ public class DayManager : MonoBehaviour
 
     void Update()
     {
+        SetWalking(!ended && !dialog.IsOpen);  // 對話時鏡頭在拍臉，角色不能走開
         if (ended || dialog.IsOpen) return;  // 看對話框時時間暫停
         clock += minutesPerSecond * Time.deltaTime;
 
@@ -141,6 +142,15 @@ public class DayManager : MonoBehaviour
               + "\n\n你不是一個人，辛苦了。\n累了，請找人說說話：衛福部安心專線 1925";
         dialog.Show(title, body, new[] { "再過一天" }, _ => SceneManager.LoadScene(SceneManager.GetActiveScene().name));
     }
+
+    void SetWalking(bool on)
+    {
+        if (walker == null) walker = FindFirstObjectByType<SimpleWalker>();
+        if (walker == null || walker.enabled == on) return;
+        walker.enabled = on;
+        if (!on) walker.GetComponent<Animator>().SetBool("isWalking", false);   // 停用時動畫不會自己停
+    }
+    SimpleWalker walker;
 
     void RefreshHud()
     {

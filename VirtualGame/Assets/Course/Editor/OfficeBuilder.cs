@@ -1,4 +1,6 @@
 using System.Linq;
+using Unity.Cinemachine;
+using Unity.Cinemachine.TargetTracking;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
@@ -114,20 +116,57 @@ public static class OfficeBuilder
         hero.GetComponent<SimpleWalker>().moveSpeed = 2.2f;
 
         Camera cam = Camera.main;
-        cam.transform.position = hero.transform.position + new Vector3(0, 8.5f, -5f);
-        cam.transform.rotation = Quaternion.Euler(58, 0, 0);
-        cam.fieldOfView = 50;
+        cam.transform.position = hero.transform.position + new Vector3(0, 3.4f, -4.2f);
         cam.GetUniversalAdditionalCameraData().renderPostProcessing = true;
-        cam.gameObject.AddComponent<CameraController>().player = hero;
+        CinemachineBrain brain = cam.gameObject.AddComponent<CinemachineBrain>();
+        brain.DefaultBlend = new CinemachineBlendDefinition(CinemachineBlendDefinition.Styles.EaseInOut, 0.7f);
 
-        BuildUI();
+        // 跟隨鏡頭：角色背後斜上方，跟著角色轉向，看向胸口
+        CinemachineCamera follow = VirtualCam("Follow Cam", hero.transform, 50, new Vector3(0, 3.4f, -4.2f), Vector2.zero);
+        follow.LookAt = Target(hero.transform, "ChestTarget", 1.2f);
+        // 臉部特寫：在角色正前方，臉放在畫面左邊三分之一，右邊留給對話框
+        CinemachineCamera face = VirtualCam("Face Cam", hero.transform, 32, new Vector3(0.25f, 1.65f, 1.3f), new Vector2(-0.22f, 0));
+
+        DayManager day = BuildUI();
+        CameraDirector director = day.gameObject.AddComponent<CameraDirector>();
+        director.followCam = follow;
+        director.faceCam = face;
+        director.dialog = day.dialog;
+        director.player = hero.GetComponent<Animator>();
         EditorSceneManager.SaveScene(scene, ScenePath);
         EditorBuildSettings.scenes = new[] { new EditorBuildSettingsScene(ScenePath, true) };
         Debug.Log("[Course] 辦公室場景完成：" + ScenePath + "，按 ▶ 開始上班");
     }
 
+    static CinemachineCamera VirtualCam(string name, Transform follow, float fov, Vector3 offset, Vector2 screenPos)
+    {
+        GameObject g = new GameObject(name);
+        g.transform.position = follow.position + follow.rotation * offset;
+        CinemachineCamera vc = g.AddComponent<CinemachineCamera>();
+        vc.Follow = follow;
+        vc.LookAt = follow;
+        vc.Lens.FieldOfView = fov;
+        CinemachineFollow f = g.AddComponent<CinemachineFollow>();
+        f.FollowOffset = offset;
+        f.TrackerSettings.BindingMode = BindingMode.LockToTargetWithWorldUp;   // 跟著角色轉，但不跟著歪
+        f.TrackerSettings.PositionDamping = new Vector3(0.6f, 0.4f, 0.6f);
+        f.TrackerSettings.RotationDamping = new Vector3(0, 1.2f, 0);
+        CinemachineRotationComposer rc = g.AddComponent<CinemachineRotationComposer>();
+        rc.Composition.ScreenPosition = screenPos;
+        rc.Damping = new Vector2(0.4f, 0.4f);
+        return vc;
+    }
+
+    static Transform Target(Transform parent, string name, float height)
+    {
+        Transform t = new GameObject(name).transform;
+        t.SetParent(parent, false);
+        t.localPosition = new Vector3(0, height, 0);
+        return t;
+    }
+
     // ───────────── UI：出勤卡＋便條紙＋紙張對話框 ─────────────
-    static void BuildUI()
+    static DayManager BuildUI()
     {
         GameObject canvasGo = new GameObject("Canvas", typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster));
         canvasGo.GetComponent<Canvas>().renderMode = RenderMode.ScreenSpaceOverlay;
@@ -168,8 +207,9 @@ public static class OfficeBuilder
         Label("Help", root, 20, TextAnchor.LowerLeft, new Vector2(0, 0), new Vector2(30, 24), new Vector2(900, 36), Cream).text = "W 前進　A／D 轉向　走到發光的黃色圓圈";
 
         // 對話框（紙張）
-        GameObject dim = Panel("DialogPanel", root, new Color(0.08f, 0.07f, 0.06f, 0.55f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(4000, 3000)).gameObject;
-        RectTransform paper = Panel("Paper", dim.transform, Paper, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(1060, 780));
+        // 對話時鏡頭會切到臉部特寫，所以紙放右邊、背景只微暗，左邊露出角色的臉
+        GameObject dim = Panel("DialogPanel", root, new Color(0.08f, 0.07f, 0.06f, 0.2f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(4000, 3000)).gameObject;
+        RectTransform paper = Panel("Paper", dim.transform, Paper, new Vector2(0.5f, 0.5f), new Vector2(380, 0), new Vector2(1060, 780));
         Border(paper.gameObject);
         Panel("Stripe", paper, Red, new Vector2(0, 1), Vector2.zero, new Vector2(1060, 10));
 
@@ -199,6 +239,7 @@ public static class OfficeBuilder
         day.statBars = bars;
         day.objectiveText = objective;
         day.objectiveNote = note.gameObject;
+        return day;
     }
 
     // ───────────── 道具 ─────────────
