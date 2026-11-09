@@ -26,6 +26,11 @@ public class DayManager : MonoBehaviour
     readonly List<Slot> schedule = new List<Slot>();
     readonly HashSet<GameEvent> used = new HashSet<GameEvent>();
 
+    // 每個選擇都記下來：編號、時間、一句說明、是被哪幾個編號造成的
+    public class Record { public int no; public string time, text, optionId; public List<int> causes; }
+    readonly List<Record> records = new List<Record>();
+    public IReadOnlyList<Record> Records => records;
+
     public static DayManager Instance;
 
     public EventDialog dialog;
@@ -34,6 +39,7 @@ public class DayManager : MonoBehaviour
     public Text objectiveText;
     public GameObject objectiveNote;        // 黃色便條紙，沒任務時藏起來
     public TypingTerminal typing;
+    public TimelineView timeline;
     public float minutesPerSecond = 0.9f;   // 09:00–18:00 約 10 分鐘玩完
     public int startMinute = 9 * 60, endMinute = 18 * 60;
 
@@ -152,12 +158,23 @@ public class DayManager : MonoBehaviour
 
     void Open(GameEvent e)
     {
+        // 這件事是今天哪些選擇造成的（結局時間軸會畫紅線）
+        var causes = new List<int>();
+        if (e.causedBy != null)
+            foreach (Record r in records)
+                if (Array.IndexOf(e.causedBy, r.optionId) >= 0) causes.Add(r.no);
         string[] labels = Array.ConvertAll(e.options, o => o.text);
-        dialog.Show(Clock(clock) + "　" + e.title, e.text, labels, i => Apply(e.options[i]));
+        dialog.Show(Clock(clock) + "　" + e.title, e.text, labels, i => Apply(e, e.options[i], causes));
     }
 
-    void Apply(Option o)
+    void Apply(GameEvent e, Option o, List<int> causes)
     {
+        records.Add(new Record
+        {
+            no = records.Count + 1, time = Clock(clock), optionId = o.id, causes = causes,
+            // 後果事件要寫出發生了什麼，時間軸上才看得懂紅線
+            text = causes.Count > 0 ? e.title + " → " + (o.log ?? o.text) : string.IsNullOrEmpty(o.log) ? e.title + "：" + o.text : o.log,
+        });
         progress = Mathf.Clamp(progress + o.progress, 0, 100);
         stress = Mathf.Clamp(stress + o.stress, 0, 100);
         trust = Mathf.Clamp(trust + o.trust, 0, 100);
@@ -182,6 +199,12 @@ public class DayManager : MonoBehaviour
         ended = true;
         objectiveNote.SetActive(false);
         if (pendingZone && pendingZone.marker) pendingZone.marker.SetActive(false);
+        // 下班先看今天的提交紀錄（因果時間軸），再看結局
+        timeline.Show(records, ShowEnding);
+    }
+
+    void ShowEnding()
+    {
         string title, body;
         if (stress >= 100)
         {

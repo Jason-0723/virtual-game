@@ -63,7 +63,7 @@ public class PlaythroughTest
             if (dialog.IsOpen)
             {
                 lastTitle = dialog.titleText.text;
-                if (!lastTitle.StartsWith("後來")) seen.Add(lastTitle);
+                if (!lastTitle.StartsWith("後來") && lastTitle != "工程師的一天") seen.Add(lastTitle);
                 Button[] shown = Array.FindAll(dialog.optionButtons, b => b.gameObject.activeSelf);
                 int pick = policy == 0 ? 0 : policy == 1 ? shown.Length - 1 : rng.Next(shown.Length);
                 shown[pick].onClick.Invoke();
@@ -75,6 +75,18 @@ public class PlaythroughTest
             }
             yield return null;
         }
+
+        // 先出現因果時間軸，按「看結局」才出現結局
+        TimelineView timeline = UnityEngine.Object.FindFirstObjectByType<TimelineView>();
+        Assert.IsTrue(timeline.IsOpen, "下班後沒有出現時間軸");
+        Assert.AreEqual(seen.Count, day.Records.Count, "有選擇沒被記錄");
+        foreach (var r in day.Records)
+            if (r.optionId == "caught-sorry" || r.optionId == "caught-delay")
+                Assert.IsNotEmpty(r.causes, "說謊被抓包卻沒連到站會");
+        yield return null;
+        Snap("timeline" + policy);
+        Debug.Log($"[Playthrough] policy {policy} 時間軸：{day.Records.Count} 筆、{timeline.LinkCount} 條紅線");
+        timeline.Continue();
 
         // 結局對話框要出現，而且標題是結局
         Assert.IsTrue(dialog.IsOpen);

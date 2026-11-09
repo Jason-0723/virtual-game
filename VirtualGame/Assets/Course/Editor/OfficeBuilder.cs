@@ -273,6 +273,7 @@ public static class OfficeBuilder
 
         DayManager day = new GameObject("DayManager").AddComponent<DayManager>();
         day.typing = typing;
+        day.timeline = canvasGo.AddComponent<TimelineView>();
         day.dialog = dlg;
         day.clockText = clock;
         day.statBars = bars;
