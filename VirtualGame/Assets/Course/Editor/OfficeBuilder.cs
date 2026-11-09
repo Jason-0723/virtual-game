@@ -87,6 +87,7 @@ public static class OfficeBuilder
         Box("Pantry Counter", new Vector3(-8, 0.45f, 6.4f), new Vector3(3.4f, 0.9f, 0.8f), wood);
         Box("Coffee Machine", new Vector3(-8.8f, 1.15f, 6.4f), new Vector3(0.45f, 0.5f, 0.4f), dark);
         Box("Fridge", new Vector3(-6, 0.9f, 6.4f), new Vector3(0.9f, 1.8f, 0.8f), board);
+        Zone("Pantry", "茶水間（左上角）", new Vector3(-7.5f, 1, 5.2f), new Vector3(3, 2, 1.6f), marker);
         Plant(new Vector3(-9.2f, 0, 3.5f), pot, leaf, 1f);
         Plant(new Vector3(2.4f, 0, -6.2f), pot, leaf, 0.9f);
         Plant(new Vector3(2.4f, 0, 2.6f), pot, leaf, 1.1f);

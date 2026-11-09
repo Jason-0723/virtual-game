@@ -7,9 +7,23 @@ using UnityEngine.UI;
 // 《工程師的一天》主控：遊戲時鐘、四個數值、依時間觸發 events.json 的事件、結局
 public class DayManager : MonoBehaviour
 {
-    [Serializable] public class Option { public string text, result, setFlag; public int progress, stress, trust, life, debt; }
-    [Serializable] public class GameEvent { public int at; public string title, place, text, onlyIfFlag; public Option[] options; }
-    [Serializable] class EventList { public string intro; public GameEvent[] events; }
+    [Serializable] public class Option { public string id, log, text, result, setFlag; public int progress, stress, trust, life, debt; }
+    [Serializable]
+    public class GameEvent
+    {
+        public int at, minAt, maxAt;                   // main 用 at；pool 用 minAt～maxAt（0 = 不限）
+        public string title, place, text, onlyIfFlag;
+        public float weight, debtWeight, stressWeight, distrustWeight;   // pool 抽籤權重
+        public bool bug;
+        public string[] causedBy;                      // 後果事件：是哪些選項 id 造成的（結局時間軸畫紅線）
+        public Option[] options;
+    }
+    [Serializable] class EventList { public string intro; public int[] slots; public GameEvent[] main, pool; }
+
+    // 半動態排程：main 固定時間一定發生，slots 的時間點從 pool 依數值加權抽一件
+    struct Slot { public int at; public GameEvent fixedEvent; }
+    readonly List<Slot> schedule = new List<Slot>();
+    readonly HashSet<GameEvent> used = new HashSet<GameEvent>();
 
     public static DayManager Instance;
 
@@ -41,6 +55,9 @@ public class DayManager : MonoBehaviour
         Instance = this;
         clock = startMinute;
         data = JsonUtility.FromJson<EventList>(Resources.Load<TextAsset>("events").text);
+        foreach (GameEvent e in data.main) schedule.Add(new Slot { at = e.at, fixedEvent = e });
+        foreach (int t in data.slots) schedule.Add(new Slot { at = t });
+        schedule.Sort((a, b) => a.at.CompareTo(b.at));
 
         // 標題用明體（襯線），其他沿用預設黑體；字型取自系統，不用另外匯入
         Font serif = Font.CreateDynamicFontFromOSFont(new[] { "PMingLiU", "MingLiU", "Noto Serif TC" }, 40);
@@ -62,9 +79,51 @@ public class DayManager : MonoBehaviour
         clock += minutesPerSecond * Time.deltaTime;
 
         if (stress >= 100) { End(); return; }
-        if (pending == null && next < data.events.Length && data.events[next].at <= clock) Trigger(data.events[next++]);
+        if (pending == null && next < schedule.Count && schedule[next].at <= clock)
+        {
+            Slot s = schedule[next++];
+            GameEvent e = s.fixedEvent ?? Draw();
+            if (e != null) Trigger(e);
+        }
         if (clock >= endMinute) { End(); return; }   // 18:00 到了就結算，沒處理的事件算沒做
         RefreshHud();
+    }
+
+    // 從 pool 抽一件：時間範圍內、條件符合、今天還沒出現過；權重越高越容易被抽到
+    GameEvent Draw()
+    {
+        var candidates = new List<GameEvent>();
+        var weights = new List<float>();
+        foreach (GameEvent e in data.pool)
+        {
+            if (used.Contains(e) || clock < e.minAt || (e.maxAt > 0 && clock > e.maxAt)) continue;
+            if (!string.IsNullOrEmpty(e.onlyIfFlag) && !flags.Contains(e.onlyIfFlag)) continue;
+            candidates.Add(e);
+            weights.Add(Weight(e, techDebt, stress, trust));
+        }
+        int i = WeightedPick(weights, UnityEngine.Random.value);
+        if (i < 0) return null;
+        used.Add(candidates[i]);
+        return candidates[i];
+    }
+
+    // 技術債越高，bug 事件越容易抽到；壓力高容易抽到喘口氣；主管信任低容易被約談
+    public static float Weight(GameEvent e, int debt, int stress, int trust) =>
+        Mathf.Max(0, e.weight + e.debtWeight * debt / 10f + e.stressWeight * stress / 10f + e.distrustWeight * (100 - trust) / 10f);
+
+    // roll 是 0～1 的亂數；全部權重都是 0 就回 -1
+    public static int WeightedPick(List<float> weights, float roll)
+    {
+        float total = 0;
+        foreach (float w in weights) total += w;
+        if (total <= 0) return -1;
+        float r = roll * total;
+        for (int i = 0; i < weights.Count; i++)
+        {
+            if (r < weights[i]) return i;
+            r -= weights[i];
+        }
+        return weights.Count - 1;   // roll = 1 的邊界
     }
 
     void Trigger(GameEvent e)

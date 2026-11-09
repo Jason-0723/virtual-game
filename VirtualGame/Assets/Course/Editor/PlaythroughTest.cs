@@ -43,12 +43,14 @@ public class PlaythroughTest
 
         float timeout = Time.realtimeSinceStartup + 120f;
         string lastTitle = "";
+        var seen = new System.Collections.Generic.List<string>();
         while (!day.Ended)
         {
             Assert.Less(Time.realtimeSinceStartup, timeout, "卡住了，最後的對話框：" + lastTitle);
             if (dialog.IsOpen)
             {
                 lastTitle = dialog.titleText.text;
+                if (!lastTitle.StartsWith("後來")) seen.Add(lastTitle);
                 Button[] shown = Array.FindAll(dialog.optionButtons, b => b.gameObject.activeSelf);
                 int pick = policy == 0 ? 0 : policy == 1 ? shown.Length - 1 : rng.Next(shown.Length);
                 shown[pick].onClick.Invoke();
@@ -70,7 +72,7 @@ public class PlaythroughTest
         // 結局對話框要出現，而且標題是結局
         Assert.IsTrue(dialog.IsOpen);
         StringAssert.StartsWith("結局", dialog.titleText.text);
-        Debug.Log($"[Playthrough] policy {policy} → {dialog.titleText.text}（技術債 {day.TechDebt}）");
+        Debug.Log($"[Playthrough] policy {policy} → {dialog.titleText.text}（技術債 {day.TechDebt}）：" + string.Join(" / ", seen));
         yield return new ExitPlayMode();
     }
 
