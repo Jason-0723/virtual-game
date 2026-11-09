@@ -30,6 +30,10 @@ public class DayManager : MonoBehaviour
     readonly HashSet<string> flags = new HashSet<string>();
     EventList data;
 
+    // 給自動試玩測試用
+    public bool Ended => ended;
+    public string PendingPlace => pending?.place;
+
     void Awake()
     {
         Instance = this;
