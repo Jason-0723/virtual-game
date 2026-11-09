@@ -7,7 +7,7 @@ using UnityEngine.UI;
 // 《工程師的一天》主控：遊戲時鐘、四個數值、依時間觸發 events.json 的事件、結局
 public class DayManager : MonoBehaviour
 {
-    [Serializable] public class Option { public string text, result, setFlag; public int progress, stress, trust, life; }
+    [Serializable] public class Option { public string text, result, setFlag; public int progress, stress, trust, life, debt; }
     [Serializable] public class GameEvent { public int at; public string title, place, text, onlyIfFlag; public Option[] options; }
     [Serializable] class EventList { public string intro; public GameEvent[] events; }
 
@@ -22,6 +22,8 @@ public class DayManager : MonoBehaviour
     public int startMinute = 9 * 60, endMinute = 18 * 60;
 
     int progress = 0, stress = 20, trust = 50, life = 50;
+    int techDebt = 0;                       // 技術債：玩家看不到，貪快會累積，下午 Bug 變多；結局才公開
+    public int TechDebt => techDebt;
     float clock;
     int next;
     GameEvent pending;                      // 等玩家走到指定地點的事件
@@ -98,6 +100,7 @@ public class DayManager : MonoBehaviour
         stress = Mathf.Clamp(stress + o.stress, 0, 100);
         trust = Mathf.Clamp(trust + o.trust, 0, 100);
         life = Mathf.Clamp(life + o.life, 0, 100);
+        techDebt = Mathf.Clamp(techDebt + o.debt, 0, 100);   // 不顯示在 HUD，也不放進 Delta
         if (!string.IsNullOrEmpty(o.setFlag)) flags.Add(o.setFlag);
         RefreshHud();
         if (!string.IsNullOrEmpty(o.result)) dialog.Show("後來⋯⋯", o.result + "\n\n" + Delta(o), new[] { "繼續" }, _ => { });
@@ -139,6 +142,7 @@ public class DayManager : MonoBehaviour
             body = "你準時離開，但進度落後，手機裡的訊息一直跳。明天要先面對主管。\n\n下班不等於工作結束，這是很多人的日常。";
         }
         body += $"\n\n進度 {progress}　壓力 {stress}　主管信任 {trust}　生活 {life}"
+              + $"\n技術債 {techDebt}（今天一直沒顯示的數字：貪快留下的程式，之後都要有人還）"
               + "\n\n你不是一個人，辛苦了。\n累了，請找人說說話：衛福部安心專線 1925";
         dialog.Show(title, body, new[] { "再過一天" }, _ => SceneManager.LoadScene(SceneManager.GetActiveScene().name));
     }

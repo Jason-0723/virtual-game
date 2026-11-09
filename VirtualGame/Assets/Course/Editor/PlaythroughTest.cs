@@ -70,7 +70,7 @@ public class PlaythroughTest
         // 結局對話框要出現，而且標題是結局
         Assert.IsTrue(dialog.IsOpen);
         StringAssert.StartsWith("結局", dialog.titleText.text);
-        Debug.Log($"[Playthrough] policy {policy} → {dialog.titleText.text}");
+        Debug.Log($"[Playthrough] policy {policy} → {dialog.titleText.text}（技術債 {day.TechDebt}）");
         yield return new ExitPlayMode();
     }
 
