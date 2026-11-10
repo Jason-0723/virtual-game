@@ -8,7 +8,7 @@
 
 ## 怎麼玩
 
-1. 下載 [Releases](../../releases) 裡的 `工程師的一天-Windows.zip`，解壓縮。
+1. 下載 [Windows 版（EngineersDay-Windows.zip，約 89 MB）](https://github.com/Jason-0723/virtual-game/releases/download/v1.0-%E9%9D%A2%E8%A9%A6%E7%89%88/EngineersDay-Windows.zip)，解壓縮。
 2. 打開 `工程師的一天.exe`，全程只要用滑鼠點。
 
 一個關卡的流程：
