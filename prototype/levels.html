@@ -1,0 +1,372 @@
+<title>工程師闖關日</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;700;900&display=swap">
+<style>
+/* 版面：一個置中的「遊戲機螢幕」：關卡地圖 → 劇情對話 → 小遊戲 → 結果，同一個舞台輪流切換 */
+:root {
+  --bg: #fff6e8; --ink: #2b2118; --dim: #6e6152; --card: #ffffff; --line: #e8dcc8;
+  --accent: #ff7a2f; --accent2: #2f9bff; --good: #2fae66; --bad: #e2453c; --star: #ffb400;
+  --font: "Noto Sans TC", "Microsoft JhengHei", system-ui, sans-serif;
+  color-scheme: light;
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--font); font-size: 16px; line-height: 1.6;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 16px;
+  display: flex; justify-content: center; }
+button { font: inherit; cursor: pointer; color: inherit; }
+button:focus-visible { outline: 3px solid var(--accent2); outline-offset: 2px; }
+.stage { width: 100%; max-width: 760px; display: flex; flex-direction: column; gap: 14px; }
+.hud { display: flex; flex-wrap: wrap; gap: 8px 18px; align-items: center; font-weight: 700; }
+.hud .title { font-weight: 900; font-size: 22px; flex: 1 1 auto; }
+.pill { background: var(--card); border: 2px solid var(--line); border-radius: 999px; padding: 2px 12px; font-size: 14px; font-variant-numeric: tabular-nums; }
+.screen { background: var(--card); border: 3px solid var(--ink); border-radius: 18px; box-shadow: 0 6px 0 var(--ink); padding: 20px; min-height: 460px; position: relative; overflow: hidden; }
+h1 { margin: 0 0 6px; font-size: 30px; font-weight: 900; text-wrap: balance; }
+h2 { margin: 0 0 4px; font-size: 22px; text-wrap: balance; }
+p { margin: 6px 0; max-width: 60ch; }
+.dim { color: var(--dim); }
+.btn { padding: 12px 20px; border-radius: 12px; border: 3px solid var(--ink); background: var(--accent); color: #fff; font-weight: 900; box-shadow: 0 4px 0 var(--ink); }
+.btn:active { transform: translateY(3px); box-shadow: 0 1px 0 var(--ink); }
+.btn.alt { background: var(--card); color: var(--ink); }
+.row { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 14px; }
+
+/* 關卡地圖 */
+.map { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 12px; margin-top: 14px; }
+.node { text-align: left; padding: 14px; border-radius: 14px; border: 3px solid var(--ink); background: var(--card); box-shadow: 0 4px 0 var(--ink); min-height: 120px; display: flex; flex-direction: column; gap: 4px; }
+.node .no { font-size: 13px; font-weight: 900; color: var(--accent); }
+.node b { font-size: 17px; }
+.node .stars { color: var(--star); letter-spacing: 2px; margin-top: auto; }
+.node[disabled] { opacity: .45; cursor: not-allowed; box-shadow: none; }
+.node.next { background: #fff0e4; animation: bob 1.2s infinite; }
+.meter { display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 700; }
+.meter .bar { flex: 1; height: 12px; border-radius: 6px; background: #f1e7d6; border: 2px solid var(--ink); overflow: hidden; }
+.meter .bar i { display: block; height: 100%; background: var(--bad); transition: width .4s; }
+
+/* 劇情 */
+.talk { display: flex; gap: 14px; align-items: flex-start; }
+.face { flex: 0 0 64px; height: 64px; border-radius: 50%; border: 3px solid var(--ink); display: grid; place-items: center; font-size: 30px; background: #ffe3cc; }
+.bubble { background: #fff9f1; border: 3px solid var(--ink); border-radius: 14px; padding: 12px 16px; min-width: 0; }
+.choice { display: flex; flex-direction: column; gap: 10px; margin-top: 16px; }
+.choice button { text-align: left; padding: 12px 16px; border-radius: 12px; border: 3px solid var(--ink); background: var(--card); font-weight: 700; box-shadow: 0 3px 0 var(--ink); }
+.choice button small { display: block; font-weight: 400; color: var(--dim); }
+
+/* 小遊戲共用 */
+.gameTop { display: flex; justify-content: space-between; align-items: center; gap: 12px; font-weight: 900; }
+.timer { height: 10px; border-radius: 5px; background: #f1e7d6; border: 2px solid var(--ink); overflow: hidden; margin: 8px 0 12px; }
+.timer i { display: block; height: 100%; background: var(--accent2); }
+.arena { position: relative; height: 340px; border: 3px solid var(--ink); border-radius: 14px; background: #f7fbff; overflow: hidden; touch-action: manipulation; user-select: none; }
+.bug { position: absolute; width: 46px; height: 46px; font-size: 34px; line-height: 46px; text-align: center; border: none; background: none; padding: 0; transition: left .9s linear, top .9s linear; }
+.bug.splat { transition: none; transform: scale(1.4); opacity: 0; transition: transform .2s, opacity .2s; }
+.app { position: absolute; inset: 18px auto 18px 50%; transform: translateX(-50%); width: 190px; border: 3px solid var(--ink); border-radius: 22px; background: #fff; padding: 12px; }
+.app .head { font-weight: 900; color: var(--accent); }
+.app .blk { height: 26px; border-radius: 8px; background: #f1e7d6; margin-top: 10px; }
+
+/* 找不同 */
+.diff { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.diff .pane { border: 3px solid var(--ink); border-radius: 14px; padding: 10px; background: #fff; position: relative; }
+.diff .pane > div:first-child { font-size: 13px; font-weight: 900; color: var(--dim); margin-bottom: 6px; }
+.mock { position: relative; height: 270px; border-radius: 14px; background: #fffdf9; border: 2px solid var(--line); }
+.mock .el { position: absolute; border-radius: 8px; display: grid; place-items: center; font-size: 13px; font-weight: 700; }
+.mock .el.hit { outline: 3px solid var(--good); outline-offset: 2px; }
+.mock.click .el { cursor: pointer; }
+@media (max-width: 520px) { .diff { grid-template-columns: 1fr; } .mock { height: 230px; } }
+
+/* 分流 */
+.lanes { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 10px; }
+.server { border: 3px solid var(--ink); border-radius: 14px; background: #fff; padding: 10px; text-align: center; font-weight: 900; box-shadow: 0 4px 0 var(--ink); }
+.server .load { height: 120px; border: 2px solid var(--ink); border-radius: 8px; margin: 8px auto 0; width: 46px; background: #f1e7d6; position: relative; overflow: hidden; }
+.server .load i { position: absolute; left: 0; right: 0; bottom: 0; background: var(--good); }
+.incoming { display: flex; gap: 8px; align-items: center; min-height: 54px; padding: 8px; border: 3px dashed var(--line); border-radius: 12px; overflow: hidden; }
+.order { flex: 0 0 auto; padding: 6px 10px; border-radius: 10px; background: #ffe3cc; border: 2px solid var(--ink); font-weight: 700; font-size: 14px; }
+.order.first { background: var(--accent); color: #fff; }
+
+/* 上線節奏 */
+.track { position: relative; height: 70px; border: 3px solid var(--ink); border-radius: 14px; background: #f1e7d6; margin: 30px 0 16px; overflow: hidden; }
+.zone { position: absolute; top: 0; bottom: 0; background: #b8ecc9; border-left: 3px solid var(--good); border-right: 3px solid var(--good); }
+.cursor { position: absolute; top: -4px; bottom: -4px; width: 8px; margin-left: -4px; background: var(--ink); border-radius: 4px; }
+.lights { display: flex; gap: 10px; justify-content: center; font-size: 34px; }
+
+/* 結果 */
+.big { font-size: 44px; color: var(--star); letter-spacing: 6px; }
+.learn { margin-top: 14px; background: #eef6ff; border: 3px solid var(--accent2); border-radius: 14px; padding: 12px 16px; }
+.learn b { color: var(--accent2); }
+.review { padding: 8px 12px; border-radius: 10px; background: #fff9f1; border: 2px solid var(--line); margin-top: 8px; }
+
+@keyframes bob { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
+@keyframes shake { 0%,100% { transform: none; } 25% { transform: translateX(-6px); } 75% { transform: translateX(6px); } }
+.shake { animation: shake .3s; }
+@media (prefers-reduced-motion: reduce) { *, *::before { animation: none !important; transition: none !important; } }
+</style>
+
+<div class="stage">
+  <div class="hud">
+    <div class="title">工程師闖關日</div>
+    <div class="pill" id="hudDay">週一・菜鳥報到</div>
+    <div class="pill">⭐ <span id="hudStars">0</span></div>
+  </div>
+  <div class="screen" id="screen"></div>
+</div>
+
+<script>
+// ───── 關卡：每一關前面有一段劇情選擇，選擇會改「技術債」，技術債讓後面的關卡變難 ─────
+const LEVELS = [
+  { id: 'bugs', no: '1-1', name: '抓蟲大作戰', icon: '🐛',
+    story: { who: '🧑‍💼', name: '主管', text: '歡迎加入飯飯外送！第一件事：App 上線前測出一堆錯誤，先把它們抓乾淨。',
+      choices: [{ text: '好，我先熟悉一下怎麼找錯誤', note: '技術債不變', debt: 0 }, { text: '直接上，邊做邊學', note: '技術債 +1：之後的蟲會多一點', debt: 1 }] },
+    learn: '這就是<b>除錯（Debug）</b>。工程師一天有很多時間在找「程式哪裡怪怪的」。偷懶留下的爛程式，就是之後一直冒出來的蟲。' },
+  { id: 'diff', no: '1-2', name: '設計稿找不同', icon: '🔍',
+    story: { who: '👩‍🎨', name: '設計師', text: '我設計的畫面跟你們做出來的，好像不太一樣？上線前幫我檢查一下！',
+      choices: [{ text: '一個一個仔細對', note: '技術債不變', debt: 0 }, { text: '「看起來差不多啦」', note: '技術債 +1：下一關時間變短', debt: 1 }] },
+    learn: '這叫<b>程式碼審查（Code Review）</b>。工程師做完東西，要請別人幫忙檢查，才不會把錯誤帶上線。' },
+  { id: 'load', no: '1-3', name: '晚餐尖峰分流', icon: '🚦',
+    story: { who: '🧑‍💻', name: 'PM', text: '晚餐時間到了，訂單會一口氣湧進來！老闆說：「伺服器不准掛。」',
+      choices: [{ text: '先加開一台伺服器（花錢但穩）', note: '這關比較輕鬆', debt: -1, easy: true }, { text: '「三台應該夠吧」', note: '技術債 +1：訂單來得更快', debt: 1 }] },
+    learn: '這叫<b>負載平衡（Load Balancing）</b>。流量太大時，要把工作平均分給好幾台電腦，任何一台塞爆，App 就打不開。' },
+  { id: 'lie', no: '1-4', name: '站會的抉擇', icon: '🗣️', storyOnly: true,
+    story: { who: '🧑‍💼', name: '主管', text: '站立會議上，主管問你：「登入功能今天會好嗎？客戶在等。」你知道其實還要兩天。',
+      choices: [{ text: '老實說：還要兩天', note: '主管信任 −，但不會有後患', debt: 0 }, { text: '「今天一定好！」', note: '技術債 +2：上線那關會變得很難', debt: 2, lie: true }] },
+    learn: '在職場上，<b>誠實回報進度</b>比逞強重要。說謊換來的時間，最後都會在上線那天加倍還。' },
+  { id: 'deploy', no: '1-5', name: '18:00 上線', icon: '🚀',
+    story: { who: '🧑‍💼', name: '主管', text: '18:00 了，全公司都盯著。抓準時機按下「上線」，連續成功三次！',
+      choices: [{ text: '深呼吸，上吧', note: '', debt: 0 }] },
+    learn: '這叫<b>部署（Deploy）</b>。把新版本推給所有使用者的那一刻，是工程師最緊張的時候。之前留下的技術債，都會讓這一步更難。' },
+];
+
+let debt = 0, cleared = {}, lied = false, extraServer = false;
+const $ = id => document.getElementById(id);
+const screen = $('screen');
+const esc = s => String(s).replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+const totalStars = () => Object.values(cleared).reduce((a, b) => a + b, 0);
+const starStr = n => '★'.repeat(n) + '☆'.repeat(3 - n);
+
+// ───── 關卡地圖 ─────
+function showMap() {
+  $('hudStars').textContent = totalStars();
+  const nextIdx = LEVELS.findIndex(l => cleared[l.id] === undefined);
+  screen.innerHTML = `<h1>週一・菜鳥報到</h1>
+    <p class="dim">你是「飯飯外送」App 的新進工程師。闖過今天的 5 關，18:00 讓 App 順利上線！</p>
+    <div class="meter">技術債<div class="bar"><i style="width:${Math.min(100, debt * 20)}%"></i></div><span>${debt}</span></div>
+    <p class="dim" style="font-size:14px">偷懶、說謊會讓技術債變高，後面的關卡就越難。</p>
+    <div class="map">${LEVELS.map((l, i) => `
+      <button class="node ${i === nextIdx ? 'next' : ''}" ${i > nextIdx && nextIdx >= 0 ? 'disabled' : ''} data-i="${i}">
+        <span class="no">${l.no}</span><span style="font-size:28px">${l.icon}</span><b>${l.name}</b>
+        <span class="stars">${cleared[l.id] !== undefined ? starStr(cleared[l.id]) : ''}</span></button>`).join('')}</div>
+    ${nextIdx < 0 ? '<div class="row"><button class="btn" id="end">看上線結果</button></div>' : ''}`;
+  screen.querySelectorAll('.node').forEach(n => n.onclick = () => startLevel(LEVELS[+n.dataset.i]));
+  if (nextIdx < 0) $('end').onclick = showEnding;
+}
+
+// ───── 劇情 ─────
+function startLevel(l) {
+  const s = l.story;
+  screen.innerHTML = `<div class="dim" style="font-weight:900">${l.no}　${l.name}</div>
+    <div class="talk" style="margin-top:12px"><div class="face">${s.who}</div>
+      <div class="bubble"><b>${s.name}</b><p>${esc(s.text)}</p></div></div>
+    <div class="choice">${s.choices.map((c, i) => `<button data-i="${i}">${esc(c.text)}${c.note ? `<small>${esc(c.note)}</small>` : ''}</button>`).join('')}</div>`;
+  screen.querySelectorAll('.choice button').forEach(b => b.onclick = () => {
+    const c = s.choices[+b.dataset.i];
+    debt = Math.max(0, debt + c.debt);
+    if (c.lie) lied = true;
+    if (c.easy) extraServer = true;
+    if (l.storyOnly) return finish(l, c.lie ? 1 : 3, c.lie ? '你說了「今天一定好」。主管很滿意……暫時。' : '主管嘆了口氣，但把客戶的時間往後喬了。');
+    countdown(l);
+  });
+}
+
+function countdown(l) {
+  let n = 3;
+  screen.innerHTML = `<div style="display:grid;place-items:center;height:420px"><div style="text-align:center"><div class="dim">${l.no}　${l.name}</div><div id="cd" style="font-size:96px;font-weight:900">3</div></div></div>`;
+  const t = setInterval(() => { n--; if (n > 0) $('cd').textContent = n; else { clearInterval(t); GAMES[l.id](l); } }, 600);
+}
+
+// 小遊戲共用的上方列＋倒數條；時間到呼叫 onEnd
+function gameFrame(l, goal, seconds, onEnd) {
+  screen.innerHTML = `<div class="gameTop"><span>${l.icon} ${l.name}</span><span id="goal">${goal}</span></div>
+    <div class="timer"><i id="tbar"></i></div><div id="g"></div>`;
+  const t0 = performance.now();
+  let over = false;
+  const loop = now => {
+    if (over) return;
+    const left = 1 - (now - t0) / (seconds * 1000);
+    $('tbar').style.width = Math.max(0, left * 100) + '%';
+    if (left <= 0) { over = true; onEnd(); } else requestAnimationFrame(loop);
+  };
+  requestAnimationFrame(loop);
+  return { stop: () => { over = true; } };
+}
+
+// ───── 小遊戲 ─────
+const GAMES = {
+  // 1. 抓蟲：點掉在 App 上爬的蟲；技術債越高蟲越多
+  bugs(l) {
+    const need = 8 + debt * 2;
+    let got = 0;
+    const timer = gameFrame(l, `抓到 0 / ${need}`, 12, () => end());
+    $('g').innerHTML = `<div class="arena" id="arena"><div class="app"><div class="head">飯飯外送</div>${'<div class="blk"></div>'.repeat(7)}</div></div>`;
+    const arena = $('arena');
+    const movers = [];
+    const spawn = () => {
+      const b = document.createElement('button');
+      b.className = 'bug'; b.textContent = '🐛'; b.setAttribute('aria-label', '蟲');
+      const move = () => { b.style.left = Math.random() * (arena.clientWidth - 46) + 'px'; b.style.top = Math.random() * (arena.clientHeight - 46) + 'px'; };
+      move(); arena.appendChild(b);
+      const mv = setInterval(move, 900 - Math.min(400, debt * 120));
+      movers.push(mv);
+      b.onpointerdown = () => {
+        clearInterval(mv); b.classList.add('splat'); setTimeout(() => b.remove(), 200);
+        got++; $('goal').textContent = `抓到 ${got} / ${need}`;
+        if (got >= need) end(); else spawn();
+      };
+    };
+    for (let i = 0; i < 3; i++) spawn();
+    let ended = false;
+    function end() {
+      if (ended) return; ended = true; timer.stop();
+      movers.forEach(clearInterval);
+      const r = got / need;
+      finish(l, r >= 1 ? 3 : r >= .7 ? 2 : r >= .4 ? 1 : 0, `你抓到 ${got} 隻蟲（目標 ${need} 隻）。`);
+    }
+  },
+
+  // 2. 找不同：點出實際畫面和設計稿不一樣的 3 個地方
+  diff(l) {
+    const els = [
+      { id: 'logo', x: 12, y: 10, w: 120, h: 34, t: '飯飯外送', bg: '#ff7a2f', fg: '#fff', diff: { bg: '#2f9bff' } },
+      { id: 'search', x: 12, y: 54, w: 190, h: 30, t: '🔍 搜尋餐廳', bg: '#f1e7d6' },
+      { id: 'card1', x: 12, y: 94, w: 92, h: 70, t: '🍱 雞排飯', bg: '#ffe3cc' },
+      { id: 'card2', x: 110, y: 94, w: 92, h: 70, t: '🍜 牛肉麵', bg: '#ffe3cc', diff: { t: '🍜' } },
+      { id: 'price', x: 12, y: 174, w: 120, h: 30, t: 'NT$ 120', bg: '#fff', diff: { t: 'NT$ 0' } },
+      { id: 'cart', x: 140, y: 174, w: 62, h: 30, t: '🛒', bg: '#2fae66', fg: '#fff' },
+      { id: 'pay', x: 12, y: 214, w: 190, h: 34, t: '結帳', bg: '#2b2118', fg: '#fff' },
+    ];
+    const render = (built) => els.map(e => {
+      const d = built && e.diff ? { ...e, ...e.diff } : e;
+      return `<div class="el" data-id="${e.id}" style="left:${d.x}px;top:${d.y}px;width:${d.w}px;height:${d.h}px;background:${d.bg};color:${d.fg || '#2b2118'}">${d.t}</div>`;
+    }).join('');
+    const answers = new Set(els.filter(e => e.diff).map(e => e.id));
+    const found = new Set();
+    let misses = 0;
+    const timer = gameFrame(l, `找到 0 / 3`, debt >= 2 ? 14 : 20, () => end());
+    $('g').innerHTML = `<div class="diff"><div class="pane"><div>設計稿（正確的）</div><div class="mock">${render(false)}</div></div>
+      <div class="pane"><div>實際做出來的（點出不一樣的地方）</div><div class="mock click" id="built">${render(true)}</div></div></div>`;
+    $('built').querySelectorAll('.el').forEach(el => el.onclick = () => {
+      if (answers.has(el.dataset.id)) { el.classList.add('hit'); found.add(el.dataset.id); $('goal').textContent = `找到 ${found.size} / 3`; if (found.size === 3) end(); }
+      else { misses++; $('built').classList.remove('shake'); void $('built').offsetWidth; $('built').classList.add('shake'); }
+    });
+    let ended = false;
+    function end() {
+      if (ended) return; ended = true; timer.stop();
+      const stars = found.size === 3 ? (misses <= 1 ? 3 : 2) : found.size >= 2 ? 1 : 0;
+      finish(l, stars, `你找到 ${found.size} 個不同（logo 顏色、牛肉麵的文字、價格變成 0 元），點錯 ${misses} 次。`);
+    }
+  },
+
+  // 3. 分流：每張訂單點一台伺服器接；伺服器負載會慢慢消化，任何一台滿了就當機
+  load(l) {
+    const n = extraServer ? 4 : 3;
+    const loads = Array(n).fill(0);
+    const queue = [];
+    let served = 0, crashed = false;
+    const sizes = [{ t: '🍱 便當', w: 18 }, { t: '🍕 披薩', w: 30 }, { t: '🧋 飲料', w: 10 }, { t: '🎉 團購', w: 45 }];
+    const timer = gameFrame(l, '撐住 15 秒！', 15, () => end());
+    $('g').innerHTML = `<div class="dim" style="font-size:14px">點一台伺服器，把<b>最左邊的訂單</b>交給它。任何一台滿了，App 就當機！</div>
+      <div class="incoming" id="inc"></div><div class="lanes" style="grid-template-columns:repeat(${n},1fr)">${loads.map((_, i) =>
+      `<button class="server" data-i="${i}">伺服器 ${i + 1}<div class="load"><i id="ld${i}"></i></div></button>`).join('')}</div>`;
+    const draw = () => {
+      $('inc').innerHTML = queue.map((o, i) => `<div class="order ${i === 0 ? 'first' : ''}">${o.t}</div>`).join('') || '<span class="dim">等待訂單…</span>';
+      loads.forEach((v, i) => { const bar = $('ld' + i); bar.style.height = Math.min(100, v) + '%'; bar.style.background = v > 75 ? 'var(--bad)' : v > 50 ? 'var(--star)' : 'var(--good)'; });
+    };
+    document.querySelectorAll('.server').forEach(b => b.onclick = () => {
+      if (!queue.length || crashed) return;
+      const i = +b.dataset.i;
+      loads[i] += queue.shift().w; served++;
+      if (loads[i] >= 100) { crashed = true; b.classList.add('shake'); end(); }
+      draw();
+    });
+    const spawnEvery = Math.max(350, 750 - debt * 120);
+    const sp = setInterval(() => { queue.push(sizes[Math.floor(Math.random() * sizes.length)]); if (queue.length > 6) { crashed = true; end(); } draw(); }, spawnEvery);
+    const cool = setInterval(() => { for (let i = 0; i < n; i++) loads[i] = Math.max(0, loads[i] - 4); draw(); }, 200);
+    draw();
+    let ended = false;
+    function end() {
+      if (ended) return; ended = true; timer.stop(); clearInterval(sp); clearInterval(cool);
+      if (crashed) return finish(l, served >= 12 ? 1 : 0, queue.length > 6 ? '訂單堆太多沒人接，App 卡住了。' : '有一台伺服器塞爆了，App 當機。');
+      finish(l, served >= 18 ? 3 : 2, `撐過尖峰！一共接了 ${served} 張訂單。`);
+    }
+  },
+
+  // 5. 上線：游標來回跑，停在綠色區域內按下去；連續成功三次。技術債、說謊會讓綠區變窄
+  deploy(l) {
+    let hits = 0, tries = 0, pos = 0, dir = 1;
+    const width = Math.max(10, 26 - debt * 4 - (lied ? 4 : 0));
+    let zone = 0;
+    const newZone = () => zone = 10 + Math.random() * (80 - width);
+    newZone();
+    screen.innerHTML = `<div class="gameTop"><span>${l.icon} ${l.name}</span><span id="goal">0 / 3</span></div>
+      <p class="dim">游標停在<b>綠色區域</b>時按「上線！」（或空白鍵）。失敗 3 次就翻車。</p>
+      <div class="track"><div class="zone" id="zone"></div><div class="cursor" id="cur"></div></div>
+      <div class="lights" id="lights">⚪⚪⚪</div><div class="row" style="justify-content:center"><button class="btn" id="go">上線！</button></div>`;
+    const placeZone = () => { $('zone').style.left = zone + '%'; $('zone').style.width = width + '%'; };
+    placeZone();
+    let fails = 0, done = false, last = performance.now();
+    const speed = 60 + debt * 15;
+    const loop = now => {
+      if (done) return;
+      pos += dir * speed * (now - last) / 1000; last = now;
+      if (pos > 100) { pos = 100; dir = -1; } if (pos < 0) { pos = 0; dir = 1; }
+      $('cur').style.left = pos + '%';
+      requestAnimationFrame(loop);
+    };
+    requestAnimationFrame(loop);
+    const press = () => {
+      if (done) return;
+      tries++;
+      if (pos >= zone && pos <= zone + width) { hits++; newZone(); placeZone(); }
+      else { fails++; screen.classList.remove('shake'); void screen.offsetWidth; screen.classList.add('shake'); }
+      $('goal').textContent = `${hits} / 3`;
+      $('lights').textContent = '🟢'.repeat(hits) + '🔴'.repeat(fails) + '⚪'.repeat(Math.max(0, 3 - hits - fails));
+      if (hits >= 3 || fails >= 3) {
+        done = true; document.removeEventListener('keydown', key);
+        finish(l, hits >= 3 ? (fails === 0 ? 3 : fails === 1 ? 2 : 1) : 0, hits >= 3 ? `上線成功！失敗了 ${fails} 次。` : '連續失敗三次，網站在上線那一刻掛掉了。');
+      }
+    };
+    const key = e => { if (e.code === 'Space') { e.preventDefault(); press(); } };
+    document.addEventListener('keydown', key);
+    $('go').onclick = press;
+  },
+};
+
+// ───── 過關結果 ─────
+function finish(l, stars, summary) {
+  const prev = cleared[l.id];
+  cleared[l.id] = Math.max(prev ?? 0, stars);
+  $('hudStars').textContent = totalStars();
+  const passed = stars > 0;
+  screen.innerHTML = `<div class="dim" style="font-weight:900">${l.no}　${l.name}</div>
+    <h1>${passed ? '過關！' : '失敗了⋯⋯'}</h1><div class="big">${starStr(stars)}</div><p>${esc(summary)}</p>
+    <div class="learn">💡 ${l.learn}</div>
+    <div class="row">${passed ? '' : '<button class="btn alt" id="retry">再試一次</button>'}<button class="btn" id="map">回關卡地圖</button></div>`;
+  if (!passed) { delete cleared[l.id]; if (prev !== undefined) cleared[l.id] = prev; $('retry').onclick = () => startLevel(l); }
+  $('map').onclick = showMap;
+}
+
+// ───── 一天結束：App 商店評論 ─────
+function showEnding() {
+  const s = totalStars();
+  const rating = Math.max(1, Math.min(5, 1.5 + s * 0.25 - debt * 0.3)).toFixed(1);
+  const reviews = [];
+  if (s >= 12) reviews.push('★★★★★ 新版超順！點餐不到一分鐘');
+  if (debt >= 2) reviews.push('★★☆☆☆ 常常閃退，是不是趕著上線啊');
+  if (lied) reviews.push('★☆☆☆☆ 說好今天有登入功能，結果還是不能登入');
+  if (extraServer) reviews.push('★★★★☆ 晚餐時間居然沒有塞車，感動');
+  if (!reviews.length) reviews.push('★★★☆☆ 還可以，希望越來越好');
+  screen.innerHTML = `<div class="dim">18:00　飯飯外送新版上線</div><h1>週一結束！</h1>
+    <div class="big">★ ${rating}</div><p>拿到 ${s} 顆星星，技術債 ${debt}。</p>
+    ${reviews.map(r => `<div class="review">${esc(r)}</div>`).join('')}
+    <div class="learn">這是網頁原型，只有第一天。正式版在 Unity 裡會有週一、週三、週五，關卡越來越難；週一說的謊、留下的技術債，會在週三、週五回來找你。</div>
+    <div class="row"><button class="btn" id="again">重新開始</button></div>`;
+  $('again').onclick = () => location.reload();
+}
+
+showMap();
+</script>
