@@ -72,6 +72,7 @@ public static class Ui
         t.horizontalOverflow = HorizontalWrapMode.Wrap;
         t.verticalOverflow = VerticalWrapMode.Overflow;
         t.raycastTarget = false;
+        ThickText.Apply(t);
         return t;
     }
 

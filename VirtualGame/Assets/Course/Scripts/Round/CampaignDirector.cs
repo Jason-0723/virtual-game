@@ -17,15 +17,15 @@ public class CampaignDirector : MonoBehaviour
     [Serializable] public class Choice { public string text, reply, anim, flag; public int trust, debt; }
     [Serializable] public class Level { public string id, name, game, speaker, line, learn; public float seconds; public int diff; public Choice[] choices; }
     [Serializable] public class Talk { public string line, anim; public Choice[] choices; }
-    [Serializable] public class Day { public string name, intro; public Level[] levels; public Talk[] endTalk; }
+    [Serializable] public class Day { public string name, intro; public bool interview; public Level[] levels; public Talk[] endTalk; }
     [Serializable] public class Data { public Day[] days; }
 
     [Header("角色")]
     public Animator player, boss;
     public Animator lewis, suzie, martha;
-    public Transform seat, bossDeskSpot, talkSpotPlayer, talkSpotBoss;
+    public Transform seat, bossDeskSpot, talkSpotPlayer, talkSpotBoss, interviewSpot;
     [Header("鏡頭")]
-    public CinemachineCamera gameCam, deskCam, deskFace, bossDeskFace, twoShot, playerFace, bossFace, lewisFace, suzieFace, marthaFace;
+    public CinemachineCamera gameCam, deskCam, deskFace, bossDeskFace, twoShot, playerFace, bossFace, lewisFace, suzieFace, marthaFace, interviewCam;
     [Header("螢幕")]
     public RectTransform monitorArea;
     public Text monitorStatus;
@@ -57,6 +57,7 @@ public class CampaignDirector : MonoBehaviour
     DepthOfField dof;
     Transform dofTarget;
     CinemachineCamera activeCam;
+    bool interviewing;   // 面試中：主管是面試官，站在白板前
 
     void Awake()
     {
@@ -85,6 +86,17 @@ public class CampaignDirector : MonoBehaviour
         Add<JargonGame>("jargon");
         Add<RestartGame>("restart");
         Add<RouteGame>("route");
+        // 面試：資工系基礎
+        Add<RobotGame>("robot");
+        Add<VariableGame>("variable");
+        Add<BinaryGame>("binary");
+        Add<ArrayGame>("array");
+        Add<LoopGame>("loop");
+        Add<QueueGame>("queue");
+        Add<StackGame>("stack");
+        Add<BubbleGame>("bubble");
+        Add<TreeGame>("tree");
+        Add<CipherGame>("cipher");
     }
 
     void Start()
@@ -109,7 +121,9 @@ public class CampaignDirector : MonoBehaviour
                 yield return new WaitForSeconds(0.2f);
                 yield return Fade(0);
             }
-            yield return Card(day.name, day.intro, "開始上班");
+            interviewing = day.interview;
+            if (interviewing) { boss.transform.SetPositionAndRotation(interviewSpot.position, interviewSpot.rotation); Cut(interviewCam, null); }
+            yield return Card(day.name, day.intro, interviewing ? "開始面試" : "開始上班");
             for (int i = 0; i < day.levels.Length; i++)
             {
                 Level lv = day.levels[i];
@@ -125,6 +139,13 @@ public class CampaignDirector : MonoBehaviour
                     yield return Result(lv, got, summary, r => retry = r);
                     if (!retry) break;
                 }
+            }
+            if (interviewing)
+            {
+                bool hired = false;
+                yield return InterviewEnd(day, h => hired = h);
+                if (!hired) yield break;
+                continue;
             }
             yield return DayEnd(d);
         }
@@ -146,21 +167,28 @@ public class CampaignDirector : MonoBehaviour
         Now = Phase.Map;
         Cut(deskCam, null);
         GameObject map = Ui.Rect("Map", ui.transform, new Color(0.07f, 0.07f, 0.09f, 0.88f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(1300, 760)).gameObject;
-        Ui.Label(map.transform, $"關卡地圖　　★ {TotalStars} / {MaxStars}　　主管信任 {trust}　　技術債 {debt}", 30, Gold, new Vector2(0.5f, 1), new Vector2(0, -30), new Vector2(1200, 50), DayManager.UiFont, TextAnchor.UpperCenter);
-        for (int d = 0; d < data.days.Length; d++)
+        string head = interviewing ? $"面試關卡　　★ {TotalStars} / {data.days[0].levels.Length * 3}　　拿到一半以上的星星就錄取" : $"關卡地圖　　★ {TotalStars} / {MaxStars}　　主管信任 {trust}　　技術債 {debt}";
+        Ui.Label(map.transform, head, 30, Gold, new Vector2(0.5f, 1), new Vector2(0, -30), new Vector2(1200, 50), DayManager.UiFont, TextAnchor.UpperCenter);
+        int row = 0;
+        foreach (Day day in data.days)
         {
-            Ui.Label(map.transform, data.days[d].name, 26, Color.white, new Vector2(0, 1), new Vector2(40, -120 - d * 190), new Vector2(300, 40), DayManager.UiFont, TextAnchor.UpperLeft);
-            for (int i = 0; i < data.days[d].levels.Length; i++)
+            if (day.interview != interviewing) continue;   // 面試時只看面試關卡，上班時只看上班的三天
+            Ui.Label(map.transform, day.name, 26, Color.white, new Vector2(0, 1), new Vector2(40, -120 - row * 190), new Vector2(600, 40), DayManager.UiFont, TextAnchor.UpperLeft);
+            int r = row;
+            for (int i = 0; i < day.levels.Length; i++)
             {
-                Level lv = data.days[d].levels[i];
+                Level lv = day.levels[i];
+                int c = i % 5;
+                r = row + i / 5;
                 bool done = stars.ContainsKey(lv.id), current = lv == next;
                 Color bg = current ? Gold : done ? new Color(1, 1, 1, 0.18f) : new Color(1, 1, 1, 0.06f);
-                RectTransform node = Ui.Rect("Node", map.transform, bg, new Vector2(0, 1), new Vector2(40 + i * 248, -165 - d * 190), new Vector2(236, 130));
+                RectTransform node = Ui.Rect("Node", map.transform, bg, new Vector2(0, 1), new Vector2(40 + c * 248, -165 - r * 190), new Vector2(236, 130));
                 string st = done ? new string('★', stars[lv.id]) + new string('☆', 3 - stars[lv.id]) : current ? "▶ 下一關" : "（未解鎖）";
                 string hard = "難度 " + new string('▮', lv.diff + 1) + new string('▯', 5 - lv.diff);   // 越後面越難
                 Ui.Label(node, $"{lv.id}　{lv.name}\n{hard}\n{st}", 22, current ? Ink : Color.white, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(226, 124), DayManager.UiFont, TextAnchor.MiddleCenter);
                 if (current) node.gameObject.AddComponent<Button>().onClick.AddListener(() => WaitingContinue = false);
             }
+            row = r + 1;
         }
         Ui.Button(map.transform, $"開始 {next.id}　{next.name}", Gold, Ink, new Vector2(0, -330), new Vector2(520, 80), DayManager.UiFont, () => WaitingContinue = false);
         WaitingContinue = true;
@@ -213,7 +241,7 @@ public class CampaignDirector : MonoBehaviour
         Now = Phase.Result;
         string title = got > 0 ? $"過關！　{new string('★', got)}{new string('☆', 3 - got)}" : "沒過關⋯⋯";
         string body = $"{summary}\n\n【小知識】{lv.learn}";
-        if (got > 0) { yield return Card(title, body, "回關卡地圖"); retry(false); }
+        if (got > 0 || interviewing) { yield return Card(title, body, interviewing && got == 0 ? "下一題（面試只有一次機會）" : "回關卡地圖"); retry(false); }
         else
         {
             bool again = false;
@@ -256,6 +284,30 @@ public class CampaignDirector : MonoBehaviour
             yield return Card($"{day.name}　結束", $"今天的星星 {dayStars} / {day.levels.Length * 3}\n主管信任 {trust}　技術債 {debt}\n\n技術債越高，明天的關卡就越難。", "回家睡一覺");
     }
 
+    // ───── 面試結束：星星過半才錄取 ─────
+    IEnumerator InterviewEnd(Day day, Action<bool> hired)
+    {
+        int got = 0, max = day.levels.Length * 3;
+        foreach (Level lv in day.levels) got += stars.TryGetValue(lv.id, out int s) ? s : 0;
+        Now = Phase.Talk;
+        Cut(interviewCam, null);
+        bool pass = got * 2 > max;
+        if (pass) yield return Says("boss", $"{got} 顆星，超過一半了。資工的基本功很扎實，下週一來上班吧！", "Nod");
+        else yield return Says("boss", $"{got} 顆星⋯⋯還差一點點。基本功再練練，下次再來。", "Shake");
+        bar.SetActive(false);
+        interviewing = false;
+        hired(pass);
+        if (pass) { yield return Card("錄取！", $"面試拿到 ★ {got} / {max}，超過一半。\n\n你成為「飯飯外送」的新進工程師。\n接下來，是真正上班的三天。", "去上班"); yield break; }
+        EndWith("結局：面試沒過", $"面試拿到 ★ {got} / {max}，要超過一半才會錄取。\n\n沒關係，每個工程師都被拒絕過。把小知識再看一次，下次一定可以。");
+    }
+
+    void EndWith(string title, string body)
+    {
+        Now = Phase.Ending;
+        Ending = title;
+        StartCoroutine(Card(title, body + "\n\n你不是一個人，辛苦了。累了，請找人說說話：衛福部安心專線 1925", "再玩一次", () => SceneManager.LoadScene(SceneManager.GetActiveScene().name)));
+    }
+
     void ShowEnding()
     {
         Now = Phase.Ending;
@@ -273,13 +325,13 @@ public class CampaignDirector : MonoBehaviour
 
     // ───── 對話小工具 ─────
     Animator Who(string speaker) => speaker == "lewis" ? lewis : speaker == "suzie" ? suzie : speaker == "martha" ? martha : boss;
-    string Name(string speaker) => speaker == "lewis" ? "學長 阿傑" : speaker == "suzie" ? "設計師 小美" : speaker == "martha" ? "PM 瑪莎" : "主管 Joe";
+    string Name(string speaker) => speaker == "lewis" ? "學長 阿傑" : speaker == "suzie" ? "設計師 小美" : speaker == "martha" ? "PM 瑪莎" : interviewing ? "面試官 Joe" : "主管 Joe";
 
     IEnumerator Says(string speaker, string text, string anim)
     {
         Animator a = Who(speaker);
         bool standingTalk = boss.transform.position == talkSpotBoss.position;
-        CinemachineCamera cam = speaker == "lewis" ? lewisFace : speaker == "suzie" ? suzieFace : speaker == "martha" ? marthaFace : standingTalk ? bossFace : bossDeskFace;
+        CinemachineCamera cam = speaker == "lewis" ? lewisFace : speaker == "suzie" ? suzieFace : speaker == "martha" ? marthaFace : interviewing ? interviewCam : standingTalk ? bossFace : bossDeskFace;
         Cut(cam, a.GetBoneTransform(HumanBodyBones.Head));
         if (a == boss) boss.CrossFadeInFixedTime(anim, 0.25f);   // 同事坐著打字，不換動作
         yield return Line(Name(speaker), text);
@@ -331,7 +383,7 @@ public class CampaignDirector : MonoBehaviour
     // 切鏡頭：只開這一台；臉部特寫時打開景深並對焦到臉
     void Cut(CinemachineCamera cam, Transform focus)
     {
-        foreach (var c in new[] { gameCam, deskCam, deskFace, bossDeskFace, twoShot, playerFace, bossFace, lewisFace, suzieFace, marthaFace })
+        foreach (var c in new[] { gameCam, deskCam, deskFace, bossDeskFace, twoShot, playerFace, bossFace, lewisFace, suzieFace, marthaFace, interviewCam })
             if (c && c != cam) c.gameObject.SetActive(false);
         cam.gameObject.SetActive(true);
         activeCam = cam;
@@ -345,8 +397,11 @@ public class CampaignDirector : MonoBehaviour
     {
         // 浮空名牌只在對話時出現：看地圖、玩小遊戲時會擋住畫面
         tags ??= FindObjectsByType<Billboard>(FindObjectsInactive.Include, FindObjectsSortMode.None);
-        bool show = Now == Phase.Talk;
-        foreach (Billboard t in tags) if (t.gameObject.activeSelf != show) t.gameObject.SetActive(show);
+        foreach (Billboard t in tags)
+        {
+            bool show = Now == Phase.Talk && !(interviewing && t.transform.IsChildOf(boss.transform));   // 面試時主管還不是你的主管，名牌先藏起來
+            if (t.gameObject.activeSelf != show) t.gameObject.SetActive(show);
+        }
         if (dof && dof.active && dofTarget) dof.focusDistance.value = Vector3.Distance(activeCam.transform.position, dofTarget.position);
     }
 

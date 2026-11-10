@@ -18,6 +18,7 @@ public static class RoundBuilder
     [MenuItem("Course/5. 建立試玩關卡（座位工作＋和主管談話）")]
     public static void Build()
     {
+        HandFont();
         OfficeBuilder.Build();
 
         // ── 拿掉三天制的系統：DayManager、整個 HUD、跟隨鏡頭 ──
@@ -115,6 +116,11 @@ public static class RoundBuilder
         director.deskCam = desk; director.deskFace = deskFace; director.bossDeskFace = bDeskFace;
         director.twoShot = two; director.playerFace = pFace; director.bossFace = bFace;
         director.lewisFace = lewisCam; director.suzieFace = suzieCam; director.marthaFace = marthaCam;
+        // ── 面試：會議室白板貼上銘傳大學校徽，面試官站在白板旁邊 ──
+        WhiteboardSign(new Vector3(6.5f, 1.6f, 6.83f));   // 白板正面在 z = 6.84，往前 1 公分避免和白板重疊閃爍
+        director.interviewSpot = new GameObject("Interview Spot (Boss)").transform;
+        director.interviewSpot.SetPositionAndRotation(new Vector3(7.75f, 0, 6.3f), Quaternion.Euler(0, 180, 0));
+        director.interviewCam = FixedCam("Interview Cam", new Vector3(6.4f, 1.55f, 3.5f), new Vector3(6.85f, 1.4f, 6.8f), 45);
         director.monitorArea = area;
         director.monitorStatus = status;
 
@@ -122,6 +128,20 @@ public static class RoundBuilder
         EditorSceneManager.SaveScene(scene, RoundPath);
         EditorBuildSettings.scenes = new[] { new EditorBuildSettingsScene(RoundPath, true), new EditorBuildSettingsScene("Assets/Course/Scenes/Office.unity", true) };
         Debug.Log("[Course] 試玩關卡完成：" + RoundPath + "，按 ▶ 開始");
+    }
+
+    // 手寫字型：辰宇落雁體（OFL 1.1，github.com/Chenyu-otf/chenyuluoyan_thin）
+    // 它沒有的符號（★ ▮ ▶ 等）交給微軟正黑體補
+    const string FontPath = "Assets/Course/Resources/ChenYuluoyan.ttf";
+    static void HandFont()
+    {
+        var imp = (TrueTypeFontImporter)AssetImporter.GetAtPath(FontPath);
+        string[] names = { "ChenYuluoyan", "Microsoft JhengHei UI", "Microsoft JhengHei" };
+        if (imp.fontNames != null && imp.fontNames.SequenceEqual(names) && imp.includeFontData) return;
+        imp.fontTextureCase = FontTextureCase.Dynamic;
+        imp.includeFontData = true;
+        imp.fontNames = names;
+        imp.SaveAndReimport();
     }
 
     // Mixamo 動作檔：設成 Humanoid（才能套到你的角色和主管身上）、設定要不要循環
@@ -174,7 +194,7 @@ public static class RoundBuilder
     // 螢幕上的 App 畫面：World Space Canvas，0.94 × 0.54 公尺
     static (RectTransform, Text) MonitorCanvas(Vector3 center)
     {
-        Font font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+        Font font = AssetDatabase.LoadAssetAtPath<Font>(FontPath);
         var g = new GameObject("Monitor UI", typeof(Canvas), typeof(GraphicRaycaster));
         g.GetComponent<Canvas>().renderMode = RenderMode.WorldSpace;
         var rt = (RectTransform)g.transform;
@@ -189,14 +209,50 @@ public static class RoundBuilder
         header.color = new Color32(0xef, 0x6c, 0x33, 255);
         Text title = Child<Text>("Title", header.rectTransform, new Vector2(900, 60), Vector2.zero);
         title.font = font; title.fontSize = 34; title.color = Color.white; title.alignment = TextAnchor.MiddleLeft; title.text = "  飯飯外送　測試版";
+        ThickText.Apply(title);
         Text status = Child<Text>("Status", rt, new Vector2(900, 40), new Vector2(0, -250));
         status.font = font; status.fontSize = 26; status.color = new Color32(0x23, 0x21, 0x1d, 255); status.alignment = TextAnchor.MiddleCenter;
+        ThickText.Apply(status);
         RectTransform area = new GameObject("Bug Area", typeof(RectTransform)).GetComponent<RectTransform>();
         area.SetParent(rt, false);
         area.sizeDelta = new Vector2(900, 400);
         area.anchoredPosition = new Vector2(0, -10);
 
         return (area, status);
+    }
+
+    // 白板（3 × 1.2 公尺，面向 -Z）：左邊銘傳大學校徽，右邊寫面試標題
+    static void WhiteboardSign(Vector3 boardFront)
+    {
+        const string logoPath = "Assets/Course/Textures/MCU_Logo.png";
+        var ti = (TextureImporter)AssetImporter.GetAtPath(logoPath);
+        if (!ti.alphaIsTransparency) { ti.alphaIsTransparency = true; ti.mipmapEnabled = true; ti.SaveAndReimport(); }
+        const string matPath = "Assets/Course/Materials/MCU_Logo.mat";
+        var mat = AssetDatabase.LoadAssetAtPath<Material>(matPath);
+        if (!mat) { mat = new Material(Shader.Find("Universal Render Pipeline/Unlit")); AssetDatabase.CreateAsset(mat, matPath); }
+        mat.SetTexture("_BaseMap", AssetDatabase.LoadAssetAtPath<Texture2D>(logoPath));
+        mat.SetFloat("_AlphaClip", 1); mat.SetFloat("_Cutoff", 0.5f);
+        mat.EnableKeyword("_ALPHATEST_ON");
+        EditorUtility.SetDirty(mat);
+
+        GameObject logo = GameObject.CreatePrimitive(PrimitiveType.Quad);   // Quad 預設正面朝 -Z
+        logo.name = "MCU Logo";
+        Object.DestroyImmediate(logo.GetComponent<Collider>());
+        logo.transform.position = boardFront + new Vector3(-1.05f, 0.05f, -0.005f);
+        logo.transform.localScale = Vector3.one * 0.7f;
+        logo.GetComponent<Renderer>().sharedMaterial = mat;
+
+        var g = new GameObject("Whiteboard Text", typeof(Canvas));
+        g.GetComponent<Canvas>().renderMode = RenderMode.WorldSpace;
+        var rt = (RectTransform)g.transform;
+        rt.sizeDelta = new Vector2(1500, 800);
+        rt.position = boardFront + new Vector3(0.45f, 0.05f, -0.005f);
+        rt.localScale = Vector3.one * 0.001f;
+        Text t = Child<Text>("Text", rt, new Vector2(1500, 800), Vector2.zero);
+        t.font = AssetDatabase.LoadAssetAtPath<Font>(FontPath);
+        ThickText.Apply(t);
+        t.fontSize = 120; t.alignment = TextAnchor.MiddleLeft; t.color = new Color32(0x1f, 0x3a, 0x8a, 255);
+        t.text = "銘傳大學 校園徵才\n飯飯外送 工程師面試\n<size=80>今天：資工基本功 10 題</size>";
     }
 
     // 浮空名牌（第 10 週）：World Space Canvas，寬 300 高 80，縮放 0.005，掛 Billboard 永遠面向鏡頭
@@ -212,8 +268,9 @@ public static class RoundBuilder
         Image bg = Child<Image>("Background", rt, new Vector2(300, 80), Vector2.zero);
         bg.color = new Color(0.07f, 0.07f, 0.09f, 0.75f);
         Text t = Child<Text>("Text", rt, new Vector2(290, 70), Vector2.zero);
-        t.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+        t.font = AssetDatabase.LoadAssetAtPath<Font>(FontPath);
         t.fontSize = 40; t.alignment = TextAnchor.MiddleCenter; t.color = Color.white; t.text = text;
+        ThickText.Apply(t);
     }
 
     static T Child<T>(string name, RectTransform parent, Vector2 size, Vector2 pos) where T : Component

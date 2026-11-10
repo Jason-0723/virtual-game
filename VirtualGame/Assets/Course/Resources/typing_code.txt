@@ -113,9 +113,9 @@ public class DayManager : MonoBehaviour
             t.font = t.name.StartsWith("Title") ? serif : UiFont;
     }
 
-    // 內文用微軟正黑體（系統內建，比預設字型清楚）；沒有就退回思源黑體
+    // 內文用辰宇落雁體（手寫風，OFL 開源，放在 Resources）；缺的符號由字型設定的備用字型（微軟正黑體）補上
     static Font uiFont;
-    public static Font UiFont => uiFont ? uiFont : uiFont = Font.CreateDynamicFontFromOSFont(new[] { "Microsoft JhengHei UI", "Microsoft JhengHei", "Noto Sans TC" }, 28);
+    public static Font UiFont => uiFont ? uiFont : uiFont = Resources.Load<Font>("ChenYuluoyan") ?? Font.CreateDynamicFontFromOSFont(new[] { "Microsoft JhengHei UI", "Microsoft JhengHei", "Noto Sans TC" }, 28);
 
     void OnDestroy()
     {

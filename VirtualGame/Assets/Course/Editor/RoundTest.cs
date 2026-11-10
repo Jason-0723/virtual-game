@@ -77,7 +77,8 @@ public class RoundTest
         yield return new WaitForSecondsRealtime(0.5f);
         Snap("campaign_ending" + policy);
         Debug.Log($"[Campaign] policy {policy}：★ {d.TotalStars} / {d.MaxStars}、主管信任 {d.Trust}、選了 {picks} 次 → {d.Ending}");
-        Assert.GreaterOrEqual(picks, 15 + 5, "每關前和每天下班都要有選擇");
+        if (d.Ending == "結局：面試沒過") { Assert.AreEqual(1, policy, "玩得好卻沒通過面試"); yield return new ExitPlayMode(); yield break; }
+        Assert.GreaterOrEqual(picks, 25 + 5, "每關前和每天下班都要有選擇");
         Assert.IsEmpty(faceProblems, "臉被字幕列擋住或超出畫面：\n" + string.Join("\n", faceProblems));
         Assert.Greater(faceChecks, 20, "臉和字幕列的檢查應該做很多次");
         if (policy == 0) Assert.GreaterOrEqual(d.TotalStars, d.MaxStars * 2 / 3, "玩得好卻拿不到星星，難度可能太高");
@@ -105,12 +106,13 @@ public class RoundTest
     public void LevelsJsonIsConsistent()
     {
         var data = JsonUtility.FromJson<CampaignDirector.Data>(Resources.Load<TextAsset>("levels").text);
-        var gamesKeys = new HashSet<string> { "bug", "diff", "load", "deploy", "triage", "phish", "backup", "password", "plan", "bisect", "firewall", "checklist", "jargon", "restart", "route" };
+        var gamesKeys = new HashSet<string> { "bug", "diff", "load", "deploy", "triage", "phish", "backup", "password", "plan", "bisect", "firewall", "checklist", "jargon", "restart", "route",
+            "robot", "variable", "binary", "array", "loop", "queue", "stack", "bubble", "tree", "cipher" };
         var speakers = new HashSet<string> { "boss", "lewis", "suzie", "martha" };
         int levels = 0;
         foreach (var day in data.days)
         {
-            Assert.IsNotEmpty(day.endTalk, day.name + " 沒有下班談話");
+            if (!day.interview) Assert.IsNotEmpty(day.endTalk, day.name + " 沒有下班談話");
             foreach (var lv in day.levels)
             {
                 levels++;
@@ -120,7 +122,9 @@ public class RoundTest
                 Assert.Greater(lv.seconds, 0, lv.id + " 沒有時間");
             }
         }
-        Assert.AreEqual(15, levels, "應該有 15 關");
+        Assert.AreEqual(25, levels, "應該有 25 關（面試 10 ＋ 上班 15）");
+        Assert.IsTrue(data.days[0].interview, "第一章應該是面試");
+        Assert.AreEqual(10, data.days[0].levels.Length, "面試應該有 10 題");
         // 越後面越難：難度不能往下掉
         int last = -1;
         foreach (var day in data.days) foreach (var lv in day.levels) { Assert.GreaterOrEqual(lv.diff, last, lv.id + " 比前一關簡單"); last = lv.diff; }
