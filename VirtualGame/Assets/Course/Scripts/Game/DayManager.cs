@@ -70,7 +70,16 @@ public class DayManager : MonoBehaviour
         // 標題用明體（襯線），其他沿用預設黑體；字型取自系統，不用另外匯入
         Font serif = Font.CreateDynamicFontFromOSFont(new[] { "PMingLiU", "MingLiU", "Noto Serif TC" }, 40);
         foreach (Text t in FindObjectsByType<Text>(FindObjectsInactive.Include, FindObjectsSortMode.None))
-            if (t.name.StartsWith("Title")) t.font = serif;
+            t.font = t.name.StartsWith("Title") ? serif : UiFont;
+    }
+
+    // 內文用微軟正黑體（系統內建，比預設字型清楚）；沒有就退回思源黑體
+    static Font uiFont;
+    public static Font UiFont => uiFont ? uiFont : uiFont = Font.CreateDynamicFontFromOSFont(new[] { "Microsoft JhengHei UI", "Microsoft JhengHei", "Noto Sans TC" }, 28);
+
+    void OnDestroy()
+    {
+        if (Instance == this) Instance = null;
     }
 
     void Start()

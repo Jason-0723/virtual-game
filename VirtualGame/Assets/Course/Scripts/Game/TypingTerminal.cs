@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.UI;
@@ -22,13 +23,28 @@ public class TypingTerminal : MonoBehaviour
 
     public bool IsOpen => panel.activeSelf;
 
+    // VS Code 配色：註解綠、字串橘、關鍵字藍、大寫開頭的型別青；用一個 regex 一次掃，註解和字串裡的字不會再被上色
+    static readonly Regex Token = new Regex(
+        @"(?<c>//[^\n]*)|(?<s>""[^""\n]*""?)|(?<k>\b(?:using|public|private|static|readonly|class|struct|void|int|float|bool|string|var|new|return|if|else|for|foreach|while|in|out|null|true|false|this|const)\b)|(?<t>\b[A-Z]\w*\b)");
+
+    public static string Highlight(string code) => Token.Replace(code, m =>
+    {
+        string color = m.Groups["c"].Success ? "#6a9955" : m.Groups["s"].Success ? "#ce9178" : m.Groups["k"].Success ? "#569cd6" : "#4ec9b0";
+        return $"<color={color}>{m.Value}</color>";
+    });
+
     void Awake()
     {
         code = Resources.Load<TextAsset>("typing_code").text.Replace("\r", "");
-        // 等寬字型像真的編輯器；中文註解借正黑體
-        codeText.font = Font.CreateDynamicFontFromOSFont(new[] { "Consolas", "Microsoft JhengHei", "Courier New" }, 24);
         panel.SetActive(false);
         hint.SetActive(false);
+    }
+
+    // 放在 Start：DayManager.Awake 會把所有字換成正黑體，這裡要在它之後再換回等寬字
+    void Start()
+    {
+        // 等寬字型像真的編輯器；中文註解借正黑體
+        codeText.font = Font.CreateDynamicFontFromOSFont(new[] { "Consolas", "Microsoft JhengHei", "Courier New" }, 24);
     }
 
     void Update()
@@ -76,7 +92,7 @@ public class TypingTerminal : MonoBehaviour
         // 只顯示最後幾行，像編輯器一直往下捲
         int cut = shown.Length;
         for (int n = 0; n < visibleLines && cut > 0; n++) cut = shown.LastIndexOf('\n', cut - 1);
-        codeText.text = (shown.Length == 0 ? "" : shown.Substring(cut + 1)) + "▌";
+        codeText.text = Highlight(shown.Length == 0 ? "" : shown.Substring(cut + 1)) + "▌";
         // 標題列顯示目前打到的檔名（從完整程式找，檔名才打一半時也不會出錯）
         int header = code.LastIndexOf("// ===== ", Mathf.Max(0, typed - 1));
         int nameEnd = header < 0 ? -1 : code.IndexOf(" =====", header + 9);

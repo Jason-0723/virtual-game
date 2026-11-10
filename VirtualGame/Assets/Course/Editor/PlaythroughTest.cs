@@ -34,7 +34,7 @@ public class PlaythroughTest
         if (policy == 0)   // 拍兩張鏡頭畫面給人看：開場對話（臉部特寫）、走路（背後跟隨）
         {
             yield return new WaitForSecondsRealtime(1.5f);
-            Snap("face");
+            Snap("face", ui: false);   // 景深會連 UI 一起糊（只有截圖時 UI 才在 3D 裡），所以特寫只拍場景
             dialog.optionButtons[0].onClick.Invoke();
             yield return new WaitForSecondsRealtime(1.5f);
             Snap("follow");
@@ -110,10 +110,11 @@ public class PlaythroughTest
     }
 
     // 主鏡頭畫面存成 專案資料夾/screenshots/<名稱>.png（不含 UI）
-    static void Snap(string name)
+    static void Snap(string name, bool ui = true)
     {
         Camera cam = Camera.main;
         Canvas canvas = UnityEngine.Object.FindFirstObjectByType<Canvas>();
+        canvas.enabled = ui;
         canvas.renderMode = RenderMode.ScreenSpaceCamera;   // 讓 UI 也拍得進去
         canvas.worldCamera = cam;
         canvas.planeDistance = 0.5f;
@@ -125,6 +126,7 @@ public class PlaythroughTest
         tex.ReadPixels(new Rect(0, 0, 960, 540), 0, 0);
         cam.targetTexture = null;
         canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+        canvas.enabled = true;
         RenderTexture.active = null;
         System.IO.Directory.CreateDirectory("../screenshots");
         System.IO.File.WriteAllBytes($"../screenshots/{name}.png", tex.EncodeToPNG());

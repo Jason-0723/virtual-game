@@ -29,13 +29,16 @@ public static class OfficeBuilder
         var scene = EditorSceneManager.NewScene(NewSceneSetup.DefaultGameObjects, NewSceneMode.Single);
 
         // ── 材質 ──
-        Material floor = Mat("Office_Floor", Hex("#b8a587"), 0.15f);
-        Material wall = Mat("Office_Wall", Hex("#efe9dc"), 0.05f);
-        Material accent = Mat("Office_Accent", Green, 0.05f);
+        // 材質分層（Gemini 建議）：會反光的螢幕、玻璃比較亮滑，布、牆、木頭比較霧
+        Material floor = Mat("Office_Floor", Color.white, 0.25f);
+        floor.SetTexture("_BaseMap", WoodFloorTexture());
+        floor.SetTextureScale("_BaseMap", new Vector2(12.5f, 8.75f));   // 一張圖 1.6 公尺見方
+        Material wall = Mat("Office_Wall", Hex("#eae6df"), 0.15f);
+        Material accent = Mat("Office_Accent", Green, 0.08f);
         Material wood = Mat("Office_Wood", Hex("#c9a77c"), 0.35f);
         Material dark = Mat("Office_Dark", Hex("#2a2b2e"), 0.4f);
-        Material screen = Mat("Office_Screen", Hex("#1d3b5c"), 0.8f, Hex("#3d7fc4") * 1.6f);
-        Material glass = Mat("Office_Glass", new Color(0.75f, 0.88f, 0.95f, 0.35f), 0.9f, default, true);
+        Material screen = Mat("Office_Screen", Hex("#1d3b5c"), 0.85f, Hex("#3d7fc4") * 1.6f);
+        Material glass = Mat("Office_Glass", new Color(0.75f, 0.88f, 0.95f, 0.25f), 0.95f, default, true);
         Material window = Mat("Office_Window", Hex("#cfe6f5"), 0.9f, Hex("#fff3d6") * 1.2f);
         Material chair = Mat("Office_Chair", Navy, 0.2f);
         Material pot = Mat("Office_Pot", Hex("#b5652c"), 0.1f);
@@ -99,13 +102,23 @@ public static class OfficeBuilder
         sun.intensity = 1.3f;
         sun.shadows = LightShadows.Soft;
         sun.transform.rotation = Quaternion.Euler(50, -35, 0);
+        // 室內環境光：上方日光燈冷白、中間暖灰、地面深灰棕，背光處才不會死黑
         RenderSettings.ambientMode = AmbientMode.Trilight;
-        RenderSettings.ambientSkyColor = Hex("#d9d2c3");
-        RenderSettings.ambientEquatorColor = Hex("#a89c86");
-        RenderSettings.ambientGroundColor = Hex("#5a5246");
+        RenderSettings.ambientSkyColor = Hex("#d8e2dc");
+        RenderSettings.ambientEquatorColor = Hex("#b8b4ac");
+        RenderSettings.ambientGroundColor = Hex("#5a554c");
+        RenderSettings.skybox = null;   // 室內不要天空，相機背景改暖灰（見下方）
+        Ceiling();
+        ReflectionProbe probe = new GameObject("Reflection Probe").AddComponent<ReflectionProbe>();
+        probe.transform.position = new Vector3(0, 1.5f, 0);
+        probe.size = new Vector3(20, 3.2f, 14);
+        probe.boxProjection = true;
+        probe.mode = ReflectionProbeMode.Realtime;
+        probe.refreshMode = ReflectionProbeRefreshMode.OnAwake;   // 開始時拍一次，之後不耗效能
         PostProcess();
 
         // ── 角色 ──
+        SmoothCharacter();
         GameObject hero = (GameObject)PrefabUtility.InstantiatePrefab(AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Course/Character/Player.fbx"));
         hero.name = "Player";
         hero.transform.position = new Vector3(0, 0, -4.5f);
@@ -118,6 +131,8 @@ public static class OfficeBuilder
         hero.GetComponent<SimpleWalker>().moveSpeed = 2.2f;
 
         Camera cam = Camera.main;
+        cam.clearFlags = CameraClearFlags.SolidColor;
+        cam.backgroundColor = Hex("#c5c0b8");   // 特寫時牆外是暖灰，加上景深就像室內深處
         cam.transform.position = hero.transform.position + new Vector3(0, 3.4f, -4.2f);
         cam.GetUniversalAdditionalCameraData().renderPostProcessing = true;
         CinemachineBrain brain = cam.gameObject.AddComponent<CinemachineBrain>();
@@ -135,6 +150,19 @@ public static class OfficeBuilder
         director.faceCam = face;
         director.dialog = day.dialog;
         director.player = hero.GetComponent<Animator>();
+        // 輪廓光：角色斜後上方一盞不投影的聚光燈，特寫時打亮頭髮和肩膀邊緣
+        Light rim = new GameObject("Rim Light").AddComponent<Light>();
+        rim.type = LightType.Spot;
+        rim.transform.SetParent(hero.transform, false);
+        rim.transform.localPosition = new Vector3(-0.7f, 2.4f, -0.9f);
+        rim.transform.LookAt(hero.transform.position + Vector3.up * 1.5f);
+        rim.color = Hex("#fff1dc");
+        rim.intensity = 3f;
+        rim.range = 4f;
+        rim.spotAngle = 50f;
+        rim.shadows = LightShadows.None;
+        rim.gameObject.SetActive(false);
+        director.rimLight = rim;
         EditorSceneManager.SaveScene(scene, ScenePath);
         EditorBuildSettings.scenes = new[] { new EditorBuildSettingsScene(ScenePath, true) };
         Debug.Log("[Course] 辦公室場景完成：" + ScenePath + "，按 ▶ 開始上班");
@@ -145,10 +173,98 @@ public static class OfficeBuilder
     {
         const string dir = "Assets/Course/Scripts/Game/";
         var sb = new System.Text.StringBuilder();
-        foreach (string f in new[] { "DayManager.cs", "TypingTerminal.cs", "EventDialog.cs", "CameraDirector.cs", "PlaceZone.cs" })
+        // TypingTerminal.cs 裡有 <color> 字樣，打出來會打亂上色，所以不放
+        foreach (string f in new[] { "DayManager.cs", "EventDialog.cs", "CameraDirector.cs", "PlaceZone.cs" })
             sb.Append("// ===== ").Append(f).Append(" =====\n").Append(System.IO.File.ReadAllText(dir + f).Replace("\r", "")).Append("\n\n");
         System.IO.File.WriteAllText("Assets/Course/Resources/typing_code.txt", sb.ToString());
         AssetDatabase.ImportAsset("Assets/Course/Resources/typing_code.txt");
+    }
+
+    // 天花板：朝下的單面 Plane，上方的跟隨鏡頭看穿它、下方的特寫鏡頭看得到；不投影，窗外的光照得進來
+    static void Ceiling()
+    {
+        Material ceil = Mat("Office_Ceiling", Hex("#e9e6df"), 0.1f);
+        GameObject c = GameObject.CreatePrimitive(PrimitiveType.Plane);
+        c.name = "Ceiling";
+        c.transform.position = new Vector3(0, 3f, 0);
+        c.transform.rotation = Quaternion.Euler(180, 0, 0);
+        c.transform.localScale = new Vector3(2, 1, 1.4f);   // Plane 是 10×10 公尺
+        Object.DestroyImmediate(c.GetComponent<Collider>());
+        Renderer r = c.GetComponent<Renderer>();
+        r.sharedMaterial = ceil;
+        r.shadowCastingMode = ShadowCastingMode.Off;
+        // 日光燈管：朝下的發光 Quad，配 Bloom 看起來會亮
+        Material lamp = Mat("Office_Lamp", Hex("#f0f8ff"), 0.5f, Hex("#f0f8ff") * 2.5f);
+        for (int x = -1; x <= 1; x++)
+            for (int z = -1; z <= 1; z++)
+            {
+                GameObject q = GameObject.CreatePrimitive(PrimitiveType.Quad);
+                q.name = "Lamp";
+                q.transform.position = new Vector3(x * 6, 2.98f, z * 4);
+                q.transform.rotation = Quaternion.Euler(-90, 0, 0);
+                q.transform.localScale = new Vector3(1.2f, 0.25f, 1);
+                Object.DestroyImmediate(q.GetComponent<Collider>());
+                q.GetComponent<Renderer>().sharedMaterial = lamp;
+                q.GetComponent<Renderer>().shadowCastingMode = ShadowCastingMode.Off;
+            }
+    }
+
+    // 角色：法線重算並平滑（消掉臉上一格一格的稜角）；材質霧面＋用自己的貼圖微微自發光，背光時五官才不會黑掉
+    static void SmoothCharacter()
+    {
+        const string fbx = "Assets/Course/Character/Player.fbx";
+        ModelImporter mi = (ModelImporter)AssetImporter.GetAtPath(fbx);
+        if (mi.importNormals != ModelImporterNormals.Calculate || mi.normalSmoothingAngle != 70)
+        {
+            mi.importNormals = ModelImporterNormals.Calculate;
+            mi.normalSmoothingAngle = 70;
+            mi.SaveAndReimport();
+        }
+        Material skin = AssetDatabase.LoadAssetAtPath<Material>("Assets/Course/Character/Player.mat");
+        skin.SetFloat("_Smoothness", 0.1f);
+        skin.EnableKeyword("_EMISSION");
+        skin.SetTexture("_EmissionMap", skin.GetTexture("_BaseMap"));
+        skin.SetColor("_EmissionColor", Hex("#3a3a3a"));
+        skin.globalIlluminationFlags = MaterialGlobalIlluminationFlags.None;
+        EditorUtility.SetDirty(skin);
+    }
+
+    // 程式畫的木地板：一排排長短不同、顏色略有差異的木板＋木紋，不用另外下載貼圖
+    static Texture2D WoodFloorTexture()
+    {
+        const string path = "Assets/Course/Materials/WoodFloor.png";
+        if (!System.IO.File.Exists(path))
+        {
+            const int size = 512, rows = 8;
+            var tex = new Texture2D(size, size);
+            var rng = new System.Random(7);
+            Color baseCol = Hex("#b8a587");
+            for (int row = 0; row < rows; row++)
+            {
+                int y0 = row * size / rows;
+                int x = -rng.Next(0, 200);
+                while (x < size)
+                {
+                    int len = rng.Next(160, 300);
+                    float tone = 0.88f + (float)rng.NextDouble() * 0.2f;
+                    float seed = (float)rng.NextDouble() * 100;
+                    for (int px = Mathf.Max(0, x); px < Mathf.Min(size, x + len); px++)
+                        for (int py = y0; py < y0 + size / rows; py++)
+                        {
+                            bool seam = py == y0 || px == x || px == x + 1;
+                            float grain = Mathf.PerlinNoise(seed + px * 0.01f, py * 0.35f) * 0.12f - 0.06f;
+                            Color c = baseCol * (tone + grain);
+                            if (seam) c *= 0.7f;
+                            c.a = 1;
+                            tex.SetPixel(px, py, c);
+                        }
+                    x += len;
+                }
+            }
+            System.IO.File.WriteAllBytes(path, tex.EncodeToPNG());
+            AssetDatabase.ImportAsset(path);
+        }
+        return AssetDatabase.LoadAssetAtPath<Texture2D>(path);
     }
 
     static CinemachineCamera VirtualCam(string name, Transform follow, float fov, Vector3 offset, Vector2 screenPos)
@@ -183,6 +299,7 @@ public static class OfficeBuilder
     {
         GameObject canvasGo = new GameObject("Canvas", typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster));
         canvasGo.GetComponent<Canvas>().renderMode = RenderMode.ScreenSpaceOverlay;
+        canvasGo.GetComponent<Canvas>().pixelPerfect = true;   // 中文小字比較銳利
         CanvasScaler scaler = canvasGo.GetComponent<CanvasScaler>();
         scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
         scaler.referenceResolution = new Vector2(1920, 1080);
@@ -253,7 +370,8 @@ public static class OfficeBuilder
         Border(term.gameObject);
         RectTransform titleBar = Panel("TitleBar", term, Hex("#323233"), new Vector2(0.5f, 1), Vector2.zero, new Vector2(1240, 44));
         Text fileText = Label("File", titleBar, 20, TextAnchor.MiddleCenter, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(1200, 40), Hex("#cccccc"));
-        Text code = Label("Code", term, 24, TextAnchor.UpperLeft, new Vector2(0, 1), new Vector2(30, -62), new Vector2(1180, 590), Hex("#9cdcfe"));
+        Text code = Label("Code", term, 24, TextAnchor.UpperLeft, new Vector2(0, 1), new Vector2(30, -62), new Vector2(1180, 590), Hex("#d4d4d4"));
+        code.supportRichText = true;   // 語法上色用
         code.horizontalOverflow = HorizontalWrapMode.Overflow;   // 程式碼不換行，太長就切掉
         Label("Hint", term, 20, TextAnchor.MiddleLeft, new Vector2(0, 0), new Vector2(30, 52), new Vector2(800, 30), Hex("#8a8a8a")).text = "隨便按鍵盤就會打出程式　Esc 離開";
         RectTransform tBarBg = Panel("BarBg", term, Hex("#3c3c3c"), new Vector2(0, 0), new Vector2(30, 18), new Vector2(1180, 16));
@@ -356,6 +474,13 @@ public static class OfficeBuilder
         Vignette v = profile.Add<Vignette>(true); v.intensity.Override(0.28f);
         Tonemapping tm = profile.Add<Tonemapping>(true); tm.mode.Override(TonemappingMode.ACES);
         ColorAdjustments ca = profile.Add<ColorAdjustments>(true); ca.postExposure.Override(0.3f); ca.saturation.Override(-8f);
+        // 景深：平常關著，臉部特寫時由 CameraDirector 打開，背後的方塊牆會糊掉
+        DepthOfField dof = profile.Add<DepthOfField>(true);
+        dof.mode.Override(DepthOfFieldMode.Bokeh);
+        dof.focusDistance.Override(1.3f);
+        dof.focalLength.Override(60f);
+        dof.aperture.Override(2.8f);
+        dof.active = false;
         AssetDatabase.CreateAsset(profile, path);
         foreach (VolumeComponent c in profile.components) AssetDatabase.AddObjectToAsset(c, profile);
         Volume vol = new GameObject("Global Volume").AddComponent<Volume>();

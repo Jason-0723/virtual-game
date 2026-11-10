@@ -22,7 +22,7 @@ public class TimelineView : MonoBehaviour
     public void Show(IReadOnlyList<DayManager.Record> records, Action then)
     {
         onContinue = then;
-        font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+        font = DayManager.UiFont;
         mono = Font.CreateDynamicFontFromOSFont(new[] { "Consolas", "Courier New" }, 22);
         if (panel) Destroy(panel);
 
