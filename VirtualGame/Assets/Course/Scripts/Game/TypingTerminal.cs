@@ -50,7 +50,7 @@ public class TypingTerminal : MonoBehaviour
     void Update()
     {
         DayManager day = DayManager.Instance;
-        bool canWork = desk.PlayerInside && !dialog.IsOpen && !day.Ended;
+        bool canWork = desk.PlayerInside && !day.WorldPaused;
         Keyboard kb = Keyboard.current;
 
         if (!IsOpen)
@@ -73,6 +73,17 @@ public class TypingTerminal : MonoBehaviour
 
     public void Close() => panel.SetActive(false);
 
+    public event System.Action<int> onTyped;   // 待辦（TaskBoard）和詐騙支線用來算打了幾個字
+    string defaultCode;
+
+    // 換成另一段程式（詐騙支線）；傳 null 換回遊戲自己的程式
+    public void LoadCode(string text)
+    {
+        if (defaultCode == null) defaultCode = code;
+        code = text ?? defaultCode;   // 詐騙支線的程式碼沒有 Windows 換行（CR），遊戲自己的程式在 Awake 已經清掉
+        typed = 0;
+    }
+
     public void TypeKey(int chars)
     {
         typed += chars;
@@ -81,9 +92,26 @@ public class TypingTerminal : MonoBehaviour
         while (sinceProgress >= charsPerProgress)
         {
             sinceProgress -= charsPerProgress;
-            DayManager.Instance.AddProgress(1);
+            if (!(DayManager.Instance.scam && DayManager.Instance.scam.Active)) DayManager.Instance.AddProgress(1);
         }
-        Refresh();
+        onTyped?.Invoke(chars);
+        if (IsOpen) Refresh();
+    }
+
+    // 太長的行截斷，不然會超出螢幕（Consolas 24 號，畫面寬約 84 個半形字；中文算兩個）
+    public static string Clip(string text, int maxWidth = 84)
+    {
+        var lines = text.Split('\n');
+        for (int i = 0; i < lines.Length; i++)
+        {
+            int w = 0;
+            for (int c = 0; c < lines[i].Length; c++)
+            {
+                w += lines[i][c] > 0x2E80 ? 2 : 1;
+                if (w > maxWidth) { lines[i] = lines[i].Substring(0, c) + "…"; break; }
+            }
+        }
+        return string.Join("\n", lines);
     }
 
     void Refresh()
@@ -92,7 +120,7 @@ public class TypingTerminal : MonoBehaviour
         // 只顯示最後幾行，像編輯器一直往下捲
         int cut = shown.Length;
         for (int n = 0; n < visibleLines && cut > 0; n++) cut = shown.LastIndexOf('\n', cut - 1);
-        codeText.text = Highlight(shown.Length == 0 ? "" : shown.Substring(cut + 1)) + "▌";
+        codeText.text = Highlight(Clip(shown.Length == 0 ? "" : shown.Substring(cut + 1))) + "▌";
         // 標題列顯示目前打到的檔名（從完整程式找，檔名才打一半時也不會出錯）
         int header = code.LastIndexOf("// ===== ", Mathf.Max(0, typed - 1));
         int nameEnd = header < 0 ? -1 : code.IndexOf(" =====", header + 9);

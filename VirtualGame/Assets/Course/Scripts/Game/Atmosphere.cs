@@ -39,7 +39,9 @@ public class Atmosphere : MonoBehaviour
         // 太陽：高度照曲線、方向從東南轉到西南、顏色照漸層
         float t = day.Clock01;
         sun.transform.rotation = Quaternion.Euler(sunHeight.Evaluate(t), Mathf.Lerp(-70, 60, t), 0);
-        sun.color = sunColor.Evaluate(t);
-        sun.intensity = Mathf.Lerp(1.1f, 1.4f, Mathf.Sin(t * Mathf.PI));
+        // 陰雨天（週五 gloom = 1）：光變暗、偏灰
+        float gloom = day.Today.gloom;
+        sun.color = Color.Lerp(sunColor.Evaluate(t), new Color(0.62f, 0.66f, 0.72f), gloom * 0.7f);
+        sun.intensity = Mathf.Lerp(1.1f, 1.4f, Mathf.Sin(t * Mathf.PI)) * (1 - 0.45f * gloom);
     }
 }

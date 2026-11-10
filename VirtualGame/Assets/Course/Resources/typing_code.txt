@@ -1,25 +1,48 @@
 // ===== DayManager.cs =====
 using System;
 using System.Collections.Generic;
+using Unity.Cinemachine;
 using UnityEngine;
+using UnityEngine.AI;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 
-// 《工程師的一天》主控：遊戲時鐘、四個數值、依時間觸發 events.json 的事件、結局
+// 《工程師的一天》主控：三天（週一／週三／週五）的遊戲時鐘、四個數值、依時間觸發 events.json 的事件、
+// 跨天旗標（前一天的選擇會在後一天爆炸）、Game Over（重來這一天／看廣告復活）、最後的結局
 public class DayManager : MonoBehaviour
 {
-    [Serializable] public class Option { public string id, log, text, result, setFlag; public int progress, stress, trust, life, debt; }
+    [Serializable]
+    public class Option
+    {
+        public string id, log, text, result, setFlag;
+        public string startTask;   // 選了就加一個倒數待辦（TaskBoard）
+        public string gameOver;    // 有寫理由＝資工天條死罪，選了直接 Game Over
+        public int progress, stress, trust, life, debt;
+    }
     [Serializable]
     public class GameEvent
     {
         public int at, minAt, maxAt;                   // main 用 at；pool 用 minAt～maxAt（0 = 不限）
         public string title, place, text, onlyIfFlag;
+        public int[] days;                             // pool：哪幾天會抽到（1～3，空的＝每天）
         public float weight, debtWeight, stressWeight, distrustWeight;   // pool 抽籤權重
-        public bool bug;
+        public bool bug;                               // 緊急事件：鏡頭會震一下
         public string[] causedBy;                      // 後果事件：是哪些選項 id 造成的（結局時間軸畫紅線）
         public Option[] options;
     }
-    [Serializable] class EventList { public string intro; public int[] slots; public GameEvent[] main, pool; }
+    [Serializable]
+    public class DayData
+    {
+        public string name, shortName, intro;
+        public float bossSpeed, gloom;
+        public int maxTasks;
+        public Vector2 taskInterval;
+        public int[] slots;
+        public GameEvent[] main;
+    }
+    [Serializable] public class SlackItem { public string app, text; public int stress, life, trust, progress; }
+    [Serializable] public class TaskDef { public string id, title, place; public int chars; public float seconds; public bool random, urgent; }
+    [Serializable] public class EventList { public DayData[] days; public GameEvent[] pool; public TaskDef[] tasks; public SlackItem[] slack; }
 
     // 半動態排程：main 固定時間一定發生，slots 的時間點從 pool 依數值加權抽一件
     struct Slot { public int at; public GameEvent fixedEvent; }
@@ -35,40 +58,56 @@ public class DayManager : MonoBehaviour
 
     public EventDialog dialog;
     public Text clockText;                  // 出勤卡上的大時鐘
+    public Text dayText;                    // 出勤卡上的「週一」
     public Image[] statBars;                // 進度、壓力、主管信任、生活（Filled 圖片）
     public Text objectiveText;
     public GameObject objectiveNote;        // 黃色便條紙，沒任務時藏起來
     public TypingTerminal typing;
     public TimelineView timeline;
-    public float minutesPerSecond = 0.9f;   // 09:00–18:00 約 10 分鐘玩完
+    public TaskBoard tasks;
+    public GameOverView gameOverView;
+    public ScamRoute scam;
+    public CinemachineImpulseSource impulse;
+    public float minutesPerSecond = 1.5f;   // 09:00–18:00 一天 6 分鐘，三天約 18 分鐘
     public int startMinute = 9 * 60, endMinute = 18 * 60;
 
     int progress = 0, stress = 20, trust = 50, life = 50;
-    int techDebt = 0;                       // 技術債：玩家看不到，貪快會累積，下午 Bug 變多；結局才公開
-    public int TechDebt => techDebt;
-    public int Progress => progress;
+    int techDebt = 0;                       // 技術債：玩家看不到，貪快會累積，Bug 變多；結局才公開
     float clock;
     int next;
+    int day;                                // 0＝週一、1＝週三、2＝週五
     GameEvent pending;                      // 等玩家走到指定地點的事件
     PlaceZone pendingZone;
-    bool ended;
+    bool ended;                             // 下班結算、Game Over、詐騙支線時為 true：時鐘停止
     readonly HashSet<string> flags = new HashSet<string>();
     EventList data;
 
-    // 給自動試玩測試用
+    // 每天開始時存一份，「重來這一天」就回到這裡
+    struct Snapshot { public int progress, stress, trust, life, debt, records; public HashSet<string> flags; public HashSet<GameEvent> used; }
+    Snapshot dayStart;
+
+    public EventList Data => data;
+    public DayData Today => data.days[day];
+    public int DayIndex => day;
     public bool Ended => ended;
+    // 世界停住：對話中、Game Over 畫面、下班結算；詐騙支線時世界照常動（幹部會巡邏）
+    public bool WorldPaused => dialog.IsOpen || (gameOverView && gameOverView.IsOpen) || (ended && !(scam && scam.Active));
     public string PendingPlace => pending?.place;
+    public int TechDebt => techDebt;
+    public int Progress => progress;
+    public int Stress => stress;
+    public int Trust => trust;
+    public int Life => life;
+    public bool HasFlag(string f) => flags.Contains(f);
+    public float Clock01 => Mathf.InverseLerp(startMinute, endMinute, clock);   // 0＝09:00、1＝18:00，給日光用
+    public string Now => Today.shortName + " " + Clock(clock);
 
     void Awake()
     {
         Instance = this;
-        clock = startMinute;
         data = JsonUtility.FromJson<EventList>(Resources.Load<TextAsset>("events").text);
-        foreach (GameEvent e in data.main) schedule.Add(new Slot { at = e.at, fixedEvent = e });
-        foreach (int t in data.slots) schedule.Add(new Slot { at = t });
-        schedule.Sort((a, b) => a.at.CompareTo(b.at));
 
-        // 標題用明體（襯線），其他沿用預設黑體；字型取自系統，不用另外匯入
+        // 標題用明體（襯線），其他用正黑體；字型取自系統，不用另外匯入
         Font serif = Font.CreateDynamicFontFromOSFont(new[] { "PMingLiU", "MingLiU", "Noto Serif TC" }, 40);
         foreach (Text t in FindObjectsByType<Text>(FindObjectsInactive.Include, FindObjectsSortMode.None))
             t.font = t.name.StartsWith("Title") ? serif : UiFont;
@@ -86,28 +125,72 @@ public class DayManager : MonoBehaviour
     void Start()
     {
         objectiveNote.SetActive(false);
+        StartDay(0);
+    }
+
+    // ───────────── 一天的開始與結束 ─────────────
+    void StartDay(int d)
+    {
+        day = d;
+        clock = startMinute;
+        next = 0;
+        ended = false;
+        ClearPending();
+        schedule.Clear();
+        foreach (GameEvent e in Today.main) schedule.Add(new Slot { at = e.at, fixedEvent = e });
+        foreach (int t in Today.slots) schedule.Add(new Slot { at = t });
+        schedule.Sort((a, b) => a.at.CompareTo(b.at));
+        dayStart = new Snapshot
+        {
+            progress = progress, stress = stress, trust = trust, life = life, debt = techDebt, records = records.Count,
+            flags = new HashSet<string>(flags), used = new HashSet<GameEvent>(used),
+        };
+        tasks.BeginDay(Today);
+        WaypointPatrol boss = FindFirstObjectByType<WaypointPatrol>();
+        if (boss) boss.GetComponent<NavMeshAgent>().speed = 1.1f * Today.bossSpeed;   // 一天比一天巡得快
+        if (dayText) dayText.text = Today.shortName;
         RefreshHud();
-        dialog.Show("工程師的一天", data.intro, new[] { "打卡上班" }, _ => { });
+        dialog.Show(Today.name, Today.intro, new[] { "打卡上班" }, _ => { });
+    }
+
+    void EndOfDay()
+    {
+        ended = true;
+        ClearPending();
+        tasks.Clear();
+        if (day < data.days.Length - 1)
+        {
+            // 下班睡一覺：壓力降一點、生活回一點
+            stress = Mathf.Clamp(stress - 15, 0, 100);
+            life = Mathf.Clamp(life + 5, 0, 100);
+            RefreshHud();
+            dialog.Show(Today.shortName + "・下班",
+                $"18:00，{Today.shortName}結束了。\n\n進度 {progress}　壓力 {stress}　主管信任 {trust}　生活 {life}\n\n今天做的選擇，接下來幾天可能會找上門。",
+                new[] { "睡一覺，到" + data.days[day + 1].shortName }, _ => StartDay(day + 1));
+        }
+        else timeline.Show(records, ShowEnding);   // 週五下班：先看三天的提交紀錄，再看結局
     }
 
     void Update()
     {
-        SetWalking(!ended && !dialog.IsOpen && !(typing && typing.IsOpen));  // 對話時鏡頭在拍臉、打字時坐在位子上，角色不能走開
+        // 對話時鏡頭在拍臉、打字時坐在位子上、Game Over 畫面時，角色不能走開
+        SetWalking(!WorldPaused && !(typing && typing.IsOpen));
         if (ended || dialog.IsOpen) return;  // 看對話框時時間暫停
         clock += minutesPerSecond * Time.deltaTime;
 
-        if (stress >= 100) { End(); return; }
+        if (stress >= 100) { GameOver("過勞倒下", "壓力破表。你盯著螢幕，眼前一黑。\n\n醒來時看著醫院的天花板，手上還握著滑鼠。\n\n軟體業的過勞不是傳說。"); return; }
+        if (trust <= 0) { GameOver("被開除", "主管信任歸零。人資請你到會議室，桌上放著一張離職同意書。"); return; }
         if (pending == null && next < schedule.Count && schedule[next].at <= clock)
         {
             Slot s = schedule[next++];
             GameEvent e = s.fixedEvent ?? Draw();
             if (e != null) Trigger(e);
         }
-        if (clock >= endMinute) { End(); return; }   // 18:00 到了就結算，沒處理的事件算沒做
+        if (clock >= endMinute) { EndOfDay(); return; }   // 18:00 到了就下班，沒處理的事件算沒做
         RefreshHud();
     }
 
-    // 從 pool 抽一件：時間範圍內、條件符合、今天還沒出現過；權重越高越容易被抽到
+    // 從 pool 抽一件：今天可以出現、時間範圍內、條件符合、還沒出現過；權重越高越容易被抽到
     GameEvent Draw()
     {
         var candidates = new List<GameEvent>();
@@ -115,6 +198,7 @@ public class DayManager : MonoBehaviour
         foreach (GameEvent e in data.pool)
         {
             if (used.Contains(e) || clock < e.minAt || (e.maxAt > 0 && clock > e.maxAt)) continue;
+            if (e.days != null && e.days.Length > 0 && Array.IndexOf(e.days, day + 1) < 0) continue;
             if (!string.IsNullOrEmpty(e.onlyIfFlag) && !flags.Contains(e.onlyIfFlag)) continue;
             candidates.Add(e);
             weights.Add(Weight(e, techDebt, stress, trust));
@@ -147,6 +231,7 @@ public class DayManager : MonoBehaviour
     void Trigger(GameEvent e)
     {
         if (!string.IsNullOrEmpty(e.onlyIfFlag) && !flags.Contains(e.onlyIfFlag)) return;
+        if (e.bug) Shake(0.5f);
         if (string.IsNullOrEmpty(e.place)) { Open(e); return; }
         pending = e;
         pendingZone = Array.Find(FindObjectsByType<PlaceZone>(FindObjectsSortMode.None), z => z.placeId == e.place);
@@ -157,111 +242,145 @@ public class DayManager : MonoBehaviour
 
     public void EnterPlace(string placeId)
     {
+        tasks.EnterPlace(placeId);
         if (pending == null || pending.place != placeId || dialog.IsOpen) return;
         GameEvent e = pending;
+        ClearPending();
+        Open(e);
+    }
+
+    void ClearPending()
+    {
         pending = null;
         if (pendingZone && pendingZone.marker) pendingZone.marker.SetActive(false);
+        pendingZone = null;
         objectiveNote.SetActive(false);
-        Open(e);
     }
 
     void Open(GameEvent e)
     {
-        // 這件事是今天哪些選擇造成的（結局時間軸會畫紅線）
+        // 這件事是之前哪些選擇造成的（結局時間軸會畫紅線）
         var causes = new List<int>();
         if (e.causedBy != null)
             foreach (Record r in records)
                 if (Array.IndexOf(e.causedBy, r.optionId) >= 0) causes.Add(r.no);
         string[] labels = Array.ConvertAll(e.options, o => o.text);
-        dialog.Show(Clock(clock) + "　" + e.title, e.text, labels, i => Apply(e, e.options[i], causes));
+        dialog.Show(Now + "　" + e.title, e.text, labels, i => Apply(e, e.options[i], causes));
     }
 
     void Apply(GameEvent e, Option o, List<int> causes)
     {
         records.Add(new Record
         {
-            no = records.Count + 1, time = Clock(clock), optionId = o.id, causes = causes,
+            no = records.Count + 1, time = Now, optionId = o.id, causes = causes,
             // 後果事件要寫出發生了什麼，時間軸上才看得懂紅線
             text = causes.Count > 0 ? e.title + " → " + (o.log ?? o.text) : string.IsNullOrEmpty(o.log) ? e.title + "：" + o.text : o.log,
         });
+        if (!string.IsNullOrEmpty(o.gameOver)) { GameOver("當場開除", o.gameOver); return; }
         progress = Mathf.Clamp(progress + o.progress, 0, 100);
         stress = Mathf.Clamp(stress + o.stress, 0, 100);
         trust = Mathf.Clamp(trust + o.trust, 0, 100);
         life = Mathf.Clamp(life + o.life, 0, 100);
         techDebt = Mathf.Clamp(techDebt + o.debt, 0, 100);   // 不顯示在 HUD，也不放進 Delta
         if (!string.IsNullOrEmpty(o.setFlag)) flags.Add(o.setFlag);
+        if (!string.IsNullOrEmpty(o.startTask)) tasks.Add(o.startTask);
         RefreshHud();
-        if (!string.IsNullOrEmpty(o.result)) dialog.Show("後來⋯⋯", o.result + "\n\n" + Delta(o), new[] { "繼續" }, _ => { });
+        if (!string.IsNullOrEmpty(o.result)) dialog.Show("後來⋯⋯", o.result + "\n\n" + Delta(o.progress, o.stress, o.trust, o.life), new[] { "繼續" }, _ => { });
     }
 
     // 讓玩家看懂這個選擇改變了什麼
-    static string Delta(Option o)
+    public static string Delta(int p, int s, int t, int l)
     {
         var parts = new List<string>();
         void Add(string n, int v) { if (v != 0) parts.Add(n + (v > 0 ? " +" : " ") + v); }
-        Add("進度", o.progress); Add("壓力", o.stress); Add("主管信任", o.trust); Add("生活", o.life);
+        Add("進度", p); Add("壓力", s); Add("主管信任", t); Add("生活", l);
         return string.Join("　", parts);
     }
 
-    void End()
+    // ───────────── Game Over 與復活 ─────────────
+    public void GameOver(string title, string reason)
     {
         ended = true;
-        objectiveNote.SetActive(false);
-        if (pendingZone && pendingZone.marker) pendingZone.marker.SetActive(false);
-        // 下班先看今天的提交紀錄（因果時間軸），再看結局
-        timeline.Show(records, ShowEnding);
+        ClearPending();
+        tasks.Clear();
+        typing.Close();
+        Shake(1f);
+        gameOverView.Show(title, reason, RetryDay, () => scam.Begin());
     }
 
+    // 回到今天早上：數值、旗標、紀錄都還原
+    public void RetryDay()
+    {
+        progress = dayStart.progress; stress = dayStart.stress; trust = dayStart.trust; life = dayStart.life; techDebt = dayStart.debt;
+        flags.Clear(); flags.UnionWith(dayStart.flags);
+        used.Clear(); used.UnionWith(dayStart.used);
+        records.RemoveRange(dayStart.records, records.Count - dayStart.records);
+        StartDay(day);
+    }
+
+    // ───────────── 結局（撐完三天）─────────────
     void ShowEnding()
     {
         string title, body;
-        if (stress >= 100)
+        if (progress >= 80 && trust >= 70)
         {
-            title = "結局：爆肝";
-            body = "壓力破表。你盯著螢幕，什麼都看不進去。\n\n軟體業的過勞不是傳說，健康檢查上的紅字也不是。";
+            title = "結局：轉正加薪";
+            body = "三天撐過來了，進度和信任都很漂亮。人資寄來轉正通知，還附了一點加薪。\n\n下週一 09:00，鬧鐘照常響起。";
         }
-        else if (flags.Contains("overtime"))
+        else if (life >= 75 && stress <= 40 && flags.Contains("whistle") && !flags.Contains("hidden_bug"))
         {
-            title = "結局：加班到 22:00";
-            body = "問題修好了，但捷運上已經沒什麼人。明天 09:30 還有站立會議。\n\n很多工程師的下班時間寫在合約上，不在現實裡。";
+            title = "結局：準時下班的人";
+            body = "你沒有背鍋，也沒有藏任何錯誤。主管被調職了。\n\n週五 18:00，你準時走出大門，雨剛好停了。";
         }
-        else if (progress >= 60 && trust >= 50)
+        else if (flags.Contains("scapegoat"))
         {
-            title = "結局：準時下班";
-            body = "進度跟上了，主管也信任你。18:00，你闔上筆電。\n\n這樣的日子存在，但需要誠實、溝通，和一點運氣。";
+            title = "結局：通過試用期，但⋯⋯";
+            body = "你通過了試用期，報告上那個漏洞，掛的是你的名字。\n\n主管對你很好。你常常想起簽名那天，手有點抖。";
         }
         else
         {
-            title = "結局：準時下班，但⋯⋯";
-            body = "你準時離開，但進度落後，手機裡的訊息一直跳。明天要先面對主管。\n\n下班不等於工作結束，這是很多人的日常。";
+            title = "結局：撐過第一週";
+            body = "你撐過了第一週。不算好，也不算壞。\n\n手機裡還有一堆沒回的訊息，下週一還有站立會議。";
         }
         body += $"\n\n進度 {progress}　壓力 {stress}　主管信任 {trust}　生活 {life}"
-              + $"\n技術債 {techDebt}（今天一直沒顯示的數字：貪快留下的程式，之後都要有人還）"
-              + "\n\n你不是一個人，辛苦了。\n累了，請找人說說話：衛福部安心專線 1925";
-        dialog.Show(title, body, new[] { "再過一天" }, _ => SceneManager.LoadScene(SceneManager.GetActiveScene().name));
+              + $"\n技術債 {techDebt}（一直沒顯示的數字：貪快留下的程式，之後都要有人還）"
+              + "\n\n你不是一個人，辛苦了。累了，請找人說說話：衛福部安心專線 1925";
+        dialog.Show(title, body, new[] { "再來一次" }, _ => SceneManager.LoadScene(SceneManager.GetActiveScene().name));
     }
 
-    public void AddProgress(int n)
+    // ───────────── 給其他元件用 ─────────────
+    // 摸魚、待辦、Slack、主管查哨：直接改數值，不跳對話框
+    public void AddStats(int p, int s, int t, int l)
     {
-        progress = Mathf.Clamp(progress + n, 0, 100);
+        progress = Mathf.Clamp(progress + p, 0, 100);
+        stress = Mathf.Clamp(stress + s, 0, 100);
+        trust = Mathf.Clamp(trust + t, 0, 100);
+        life = Mathf.Clamp(life + l, 0, 100);
         RefreshHud();
     }
-
-    // 摸魚、Slack、主管查哨用：直接改數值，不跳對話框
-    public int Stress => stress;
-    public int Trust => trust;
-    public float Clock01 => Mathf.InverseLerp(startMinute, endMinute, clock);   // 0＝09:00、1＝18:00，給日光用
-    public void AddStress(int n) { stress = Mathf.Clamp(stress + n, 0, 100); RefreshHud(); }
+    public void AddProgress(int n) => AddStats(n, 0, 0, 0);
+    public void AddStress(int n) => AddStats(0, n, 0, 0);
 
     // 臨時插進來的事（例如摸魚被主管抓到）：跳一個只有「繼續」的對話框，也記進時間軸
     public void Interrupt(string title, string text, string log, int stressDelta, int trustDelta)
     {
-        stress = Mathf.Clamp(stress + stressDelta, 0, 100);
-        trust = Mathf.Clamp(trust + trustDelta, 0, 100);
-        records.Add(new Record { no = records.Count + 1, time = Clock(clock), optionId = "interrupt", causes = new List<int>(), text = log });
-        RefreshHud();
-        var o = new Option { stress = stressDelta, trust = trustDelta };
-        dialog.Show(Clock(clock) + "　" + title, text + "\n\n" + Delta(o), new[] { "繼續" }, _ => { });
+        AddStats(0, stressDelta, trustDelta, 0);
+        records.Add(new Record { no = records.Count + 1, time = Now, optionId = "interrupt", causes = new List<int>(), text = log });
+        dialog.Show(Now + "　" + title, text + "\n\n" + Delta(0, stressDelta, trustDelta, 0), new[] { "繼續" }, _ => { });
+    }
+
+    // 鏡頭震一下（Cinemachine Impulse）：緊急事件、Game Over、警察攻堅
+    public void Shake(float force)
+    {
+        if (impulse) impulse.GenerateImpulseWithForce(force);
+    }
+
+    // 詐騙支線接管畫面時：時鐘停、HUD 交給 ScamRoute
+    public void EnterScamMode()
+    {
+        ended = true;
+        ClearPending();
+        tasks.Clear();
     }
 
     void SetWalking(bool on)
@@ -275,6 +394,7 @@ public class DayManager : MonoBehaviour
 
     void RefreshHud()
     {
+        if (scam && scam.Active) return;   // 詐騙支線自己管 HUD
         clockText.text = Clock(clock);
         int[] v = { progress, stress, trust, life };
         for (int i = 0; i < statBars.Length; i++) statBars[i].fillAmount = v[i] / 100f;

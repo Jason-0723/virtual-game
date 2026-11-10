@@ -40,7 +40,7 @@ public class SlackFeed : MonoBehaviour
     void Update()
     {
         DayManager day = DayManager.Instance;
-        bool paused = day == null || day.Ended || day.dialog.IsOpen;
+        bool paused = day == null || day.Ended || day.WorldPaused;
         if (paused) { next += Time.deltaTime; return; }   // 對話時不打擾，也不讓訊息過期
 
         if (Time.time >= next)

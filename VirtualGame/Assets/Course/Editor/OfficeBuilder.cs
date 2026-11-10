@@ -18,6 +18,7 @@ public static class OfficeBuilder
 {
     const string ScenePath = "Assets/Course/Scenes/Office.unity";
     static Font font;
+    const int WallLayer = 8;   // 牆：給鏡頭的 Deoccluder 判斷用
 
     // 配色：紙、墨、森林綠、海軍藍、磚紅、琥珀
     static readonly Color Paper = Hex("#efebe2"), Cream = Hex("#f4efe4"), Ink = Hex("#1f201d"), Dim = Hex("#55564f");
@@ -52,11 +53,11 @@ public static class OfficeBuilder
         // ── 格局（公尺，20×14）──
         Box("Floor", new Vector3(0, -0.05f, 0), new Vector3(20, 0.1f, 14), floor);
         Box("Hallway", new Vector3(0, -0.07f, 0), new Vector3(60, 0.1f, 50), Mat("Office_Hallway", Hex("#4a443c"), 0.2f));   // 牆外，鏡頭照到才不會是一片空
-        Box("Wall N", new Vector3(0, 1.5f, 7), new Vector3(20, 3, 0.2f), wall);
+        Box("Wall N", new Vector3(0, 1.5f, 7), new Vector3(20, 3, 0.2f), wall).layer = WallLayer;
         Box("Wall N Accent", new Vector3(-5, 0.6f, 6.88f), new Vector3(10, 1.2f, 0.05f), accent);
-        Box("Wall S", new Vector3(0, 0.4f, -7), new Vector3(20, 0.8f, 0.2f), wall);        // 南牆矮，鏡頭看得進來
-        Box("Wall E", new Vector3(10, 1.5f, 0), new Vector3(0.2f, 3, 14), wall);
-        Box("Wall W", new Vector3(-10, 1.5f, 0), new Vector3(0.2f, 3, 14), wall);
+        Box("Wall S", new Vector3(0, 0.4f, -7), new Vector3(20, 0.8f, 0.2f), wall).layer = WallLayer;        // 南牆矮，鏡頭看得進來
+        Box("Wall E", new Vector3(10, 1.5f, 0), new Vector3(0.2f, 3, 14), wall).layer = WallLayer;
+        Box("Wall W", new Vector3(-10, 1.5f, 0), new Vector3(0.2f, 3, 14), wall).layer = WallLayer;
         for (int i = 0; i < 4; i++) Box("Window", new Vector3(-9.88f, 1.7f, -4.5f + i * 3), new Vector3(0.05f, 1.4f, 2.2f), window);
 
         // 工位區：3×2，前排最左的黃色桌子是你的
@@ -94,6 +95,16 @@ public static class OfficeBuilder
         Box("Coffee Machine", new Vector3(-8.8f, 1.15f, 6.4f), new Vector3(0.45f, 0.5f, 0.4f), dark);
         Box("Fridge", new Vector3(-6, 0.9f, 6.4f), new Vector3(0.9f, 1.8f, 0.8f), board);
         Zone("Pantry", "茶水間（左上角）", new Vector3(-7.5f, 1, 5.2f), new Vector3(3, 2, 1.6f), marker);
+
+        // 機房：右側牆邊三座機櫃（會閃的綠燈），週三跳電時要跑過來
+        Material rackLed = Mat("Office_RackLed", Hex("#3cff7a"), 0.5f, Hex("#3cff7a") * 3f);
+        for (int i = 0; i < 3; i++)
+        {
+            Vector3 rp = new Vector3(9.4f, 0, -1.6f + i * 0.9f);
+            Box("Server Rack", rp + new Vector3(0, 1f, 0), new Vector3(0.7f, 2f, 0.8f), dark);
+            for (int k = 0; k < 4; k++) Box("Rack Led", rp + new Vector3(-0.36f, 0.5f + k * 0.4f, 0.2f), new Vector3(0.02f, 0.04f, 0.15f), rackLed);
+        }
+        Zone("Server", "機房（右側牆邊）", new Vector3(8.4f, 1, -0.7f), new Vector3(1.6f, 2, 2.8f), marker);
         Plant(new Vector3(-9.2f, 0, 3.5f), pot, leaf, 1f);
         Plant(new Vector3(2.4f, 0, -6.2f), pot, leaf, 0.9f);
         Plant(new Vector3(2.4f, 0, 2.6f), pot, leaf, 1.1f);
@@ -143,6 +154,15 @@ public static class OfficeBuilder
         // 跟隨鏡頭：角色背後斜上方，跟著角色轉向，看向胸口
         CinemachineCamera follow = VirtualCam("Follow Cam", hero.transform, 50, new Vector3(0, 3.4f, -4.2f), Vector2.zero);
         follow.LookAt = Target(hero.transform, "ChestTarget", 1.2f);
+        // 角色靠牆時鏡頭會被牆擋住 → Deoccluder：牆擋在中間就把鏡頭繞到看得到角色的地方（只看第 8 層「牆」）
+        CinemachineDeoccluder deocc = follow.gameObject.AddComponent<CinemachineDeoccluder>();
+        deocc.CollideAgainst = 1 << WallLayer;
+        deocc.AvoidObstacles.Enabled = true;
+        deocc.AvoidObstacles.Strategy = CinemachineDeoccluder.ObstacleAvoidance.ResolutionStrategy.PreserveCameraDistance;   // 維持距離、從牆頂繞上去；直接拉近會貼到角色背上
+        deocc.AvoidObstacles.CameraRadius = 0.2f;
+        deocc.AvoidObstacles.Damping = 0.2f;
+        deocc.AvoidObstacles.DampingWhenOccluded = 0.1f;
+        deocc.MinimumDistanceFromTarget = 0.1f;   // 比這更近的障礙物不理會；角色貼牆時牆離胸口約 0.3 公尺，所以要比 0.3 小
         // 臉部特寫：在角色正前方，臉放在畫面左邊三分之一，右邊留給對話框
         CinemachineCamera face = VirtualCam("Face Cam", hero.transform, 32, new Vector3(0.25f, 1.65f, 1.3f), new Vector2(-0.22f, 0));
 
@@ -492,6 +512,7 @@ public static class OfficeBuilder
         f.TrackerSettings.BindingMode = BindingMode.LockToTargetWithWorldUp;   // 跟著角色轉，但不跟著歪
         f.TrackerSettings.PositionDamping = new Vector3(0.6f, 0.4f, 0.6f);
         f.TrackerSettings.RotationDamping = new Vector3(0, 1.2f, 0);
+        g.AddComponent<CinemachineImpulseListener>();
         CinemachineRotationComposer rc = g.AddComponent<CinemachineRotationComposer>();
         rc.Composition.ScreenPosition = screenPos;
         rc.Damping = new Vector2(0.4f, 0.4f);
@@ -526,13 +547,18 @@ public static class OfficeBuilder
         Label("Shift", card, 20, TextAnchor.UpperLeft, new Vector2(0, 1), new Vector2(24, -58), new Vector2(380, 30), Dim).text = "上班 09:00 － 下班 18:00";
         Text clock = Label("Clock", card, 56, TextAnchor.UpperRight, new Vector2(1, 1), new Vector2(-24, -14), new Vector2(200, 70), Red);
         clock.fontStyle = FontStyle.Bold;
+        Text dayLabel = Label("Day", card, 22, TextAnchor.UpperRight, new Vector2(1, 1), new Vector2(-24, -80), new Vector2(200, 30), Dim);
+        Text cardTitle = card.Find("Title Card").GetComponent<Text>();
+        Text cardShift = card.Find("Shift").GetComponent<Text>();
+        Text[] statNames = new Text[4];
         string[] names = { "進度", "壓力", "主管信任", "生活" };
         Color[] colors = { Green, Red, Navy, Amber };
         Image[] bars = new Image[4];
         for (int i = 0; i < 4; i++)
         {
             float y = -112 - i * 52;
-            Label("StatName", card, 22, TextAnchor.MiddleLeft, new Vector2(0, 1), new Vector2(24, y), new Vector2(110, 36), Ink).text = names[i];
+            statNames[i] = Label("StatName", card, 22, TextAnchor.MiddleLeft, new Vector2(0, 1), new Vector2(24, y), new Vector2(110, 36), Ink);
+            statNames[i].text = names[i];
             RectTransform bg = Panel("BarBg", card, Hex("#ddd5c4"), new Vector2(0, 1), new Vector2(140, y - 8), new Vector2(260, 20));
             Image fill = Panel("BarFill", bg, colors[i], new Vector2(0, 0.5f), Vector2.zero, new Vector2(260, 20)).GetComponent<Image>();
             fill.sprite = WhiteSprite();
@@ -601,13 +627,8 @@ public static class OfficeBuilder
         typing.dialog = dlg;
         // 摸魚畫面（Tab 切換）：蓋在程式碼上面的「迷因板」
         RectTransform meme = Panel("MemePanel", term, Hex("#f2efe9"), new Vector2(0.5f, 0.5f), new Vector2(0, -8), new Vector2(1240, 712));
-        Label("Title", meme, 30, TextAnchor.UpperLeft, new Vector2(0, 1), new Vector2(40, -24), new Vector2(1100, 44), Ink).text = "迷因板・熱門";
-        Label("Memes", meme, 28, TextAnchor.UpperLeft, new Vector2(0, 1), new Vector2(40, -90), new Vector2(1160, 560), Dim).text =
-            "工程師的三種狀態：能動、不能動、不知道為什麼能動\n\n" +
-            "「這個需求很簡單」—— 每一個 PM\n\n" +
-            "星期五下午五點：「可以先上線嗎？」\n\n" +
-            "我的程式碼：1% 靈感，99% 咖啡因\n\n" +
-            "（按 Tab 切回工作）";
+        Text memeTitle = Label("Title", meme, 30, TextAnchor.UpperLeft, new Vector2(0, 1), new Vector2(40, -24), new Vector2(1100, 44), Ink);
+        Text memeBody = Label("Memes", meme, 28, TextAnchor.UpperLeft, new Vector2(0, 1), new Vector2(40, -90), new Vector2(1160, 560), Dim);
         // 主管的反光人影：浮在螢幕右邊，越近越清楚（SlackOff 控制透明度）
         Image reflection = Panel("BossReflection", term, new Color(0, 0, 0, 0), new Vector2(1, 0.5f), new Vector2(-40, -20), new Vector2(300, 420)).GetComponent<Image>();
         reflection.sprite = SilhouetteSprite();
@@ -616,6 +637,8 @@ public static class OfficeBuilder
         slackOff.typing = typing;
         slackOff.memePanel = meme.gameObject;
         slackOff.reflection = reflection;
+        slackOff.memeTitle = memeTitle;
+        slackOff.memeBody = memeBody;
         Label("TabHint", term, 20, TextAnchor.MiddleRight, new Vector2(1, 0), new Vector2(-30, 52), new Vector2(500, 30), Hex("#8a8a8a")).text = "Tab 摸魚（小心主管）";
 
         // Slack 訊息卡片（右上角）：範本，SlackFeed 複製出來用
@@ -626,11 +649,36 @@ public static class OfficeBuilder
         Label("Text", slackCard, 22, TextAnchor.UpperLeft, new Vector2(0, 1), new Vector2(24, -38), new Vector2(420, 50), Ink);
         canvasGo.AddComponent<SlackFeed>().cardTemplate = slackCard;
 
+        // 待辦倒數：出勤卡下方，一件一列（TaskBoard 複製範本）
+        RectTransform taskRow = Panel("TaskRow", root, new Color(0.96f, 0.94f, 0.89f, 0.95f), new Vector2(0, 1), new Vector2(30, -380), new Vector2(560, 54));
+        Border(taskRow.gameObject);
+        Label("Label", taskRow, 21, TextAnchor.MiddleLeft, new Vector2(0, 1), new Vector2(16, -4), new Vector2(530, 40), Ink);
+        Image taskBar = Panel("Bar", taskRow, Amber, new Vector2(0, 0), new Vector2(0, 0), new Vector2(560, 6)).GetComponent<Image>();
+        taskBar.sprite = WhiteSprite();
+        taskBar.type = Image.Type.Filled;
+        taskBar.fillMethod = Image.FillMethod.Horizontal;
+        TaskBoard taskBoard = canvasGo.AddComponent<TaskBoard>();
+        taskBoard.rowTemplate = taskRow;
+        GameOverView gameOver = canvasGo.AddComponent<GameOverView>();
+        ScamRoute scam = canvasGo.AddComponent<ScamRoute>();
+        scam.cardTitle = cardTitle;
+        scam.cardShift = cardShift;
+        scam.clockText = clock;
+        scam.statNames = statNames;
+        scam.statBars = bars;
+        scam.sun = Object.FindFirstObjectByType<Light>();
+
         dim.transform.SetAsLastSibling();   // 對話框永遠蓋在最上面
 
         DayManager day = new GameObject("DayManager").AddComponent<DayManager>();
         day.typing = typing;
         day.timeline = canvasGo.AddComponent<TimelineView>();
+        day.tasks = taskBoard;
+        day.gameOverView = gameOver;
+        day.scam = scam;
+        day.dayText = dayLabel;
+        // 鏡頭震動來源（緊急事件、Game Over、警察攻堅）；兩台虛擬鏡頭上的 ImpulseListener 會接收
+        day.impulse = day.gameObject.AddComponent<CinemachineImpulseSource>();
         day.dialog = dlg;
         day.clockText = clock;
         day.statBars = bars;

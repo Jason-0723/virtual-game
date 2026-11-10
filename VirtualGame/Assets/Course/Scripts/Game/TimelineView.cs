@@ -29,13 +29,14 @@ public class TimelineView : MonoBehaviour
         // 整個畫面先蓋一層暗色，中間放一張紙
         panel = Rect("Timeline", transform, new Color(0.08f, 0.07f, 0.06f, 0.85f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(4000, 3000)).gameObject;
         RectTransform paper = Rect("Paper", panel.transform, Paper, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(1560, 1000));
-        Text title = Label(paper, "下班了。今天的提交紀錄", 40, Red, new Vector2(60, -36), new Vector2(1200, 56));
+        Text title = Label(paper, "下班了。這一週的提交紀錄", 40, Red, new Vector2(60, -36), new Vector2(1200, 56));
         title.font = Font.CreateDynamicFontFromOSFont(new[] { "PMingLiU", "MingLiU", "Noto Serif TC" }, 40);
-        Label(paper, "git log --graph --since=09:00　　紅線：後面那件事，是前面那個選擇造成的", 22, Dim, new Vector2(60, -96), new Vector2(1400, 34));
+        Label(paper, "git log --graph --since=週一　　紅線：後面那件事，是前面那個選擇造成的", 22, Dim, new Vector2(60, -96), new Vector2(1400, 34));
 
         int n = Mathf.Max(1, records.Count);
         const float top = -150, dotX = 300;
         float rowH = Mathf.Min(58, 720f / n);
+        int fs = Mathf.Clamp(Mathf.RoundToInt(rowH * 0.55f), 15, 24);   // 三天的紀錄比較多，行高變小時字也跟著縮
         float Y(int i) => top - i * rowH - rowH / 2;
 
         if (records.Count > 1) Line(paper, Rail, dotX, Y(0), dotX, Y(records.Count - 1), 3);
@@ -62,13 +63,13 @@ public class TimelineView : MonoBehaviour
             RectTransform dot = Rect("Dot", paper, effect ? Red : Ink, new Vector2(0, 1), new Vector2(dotX, Y(i)), new Vector2(16, 16));
             dot.pivot = new Vector2(0.5f, 0.5f);
             dot.localRotation = Quaternion.Euler(0, 0, 45);   // 菱形當作 commit 點
-            Text hash = Label(paper, Hash(r), 22, Amber, new Vector2(dotX + 34, Y(i) + rowH / 2), new Vector2(110, rowH));
+            Text hash = Label(paper, Hash(r), fs - 2, Amber, new Vector2(dotX + 34, Y(i) + rowH / 2), new Vector2(110, rowH));
             hash.font = mono;
             hash.alignment = TextAnchor.MiddleLeft;
-            Text when = Label(paper, r.time, 22, Dim, new Vector2(dotX + 150, Y(i) + rowH / 2), new Vector2(90, rowH));
+            Text when = Label(paper, r.time, fs - 2, Dim, new Vector2(dotX + 150, Y(i) + rowH / 2), new Vector2(150, rowH));
             when.alignment = TextAnchor.MiddleLeft;
             string because = effect ? "　← 因為 " + string.Join("、", r.causes.ConvertAll(c => Hash(records[row[c]]))) : "";
-            Text msg = Label(paper, r.text + because, 24, effect ? Red : Ink, new Vector2(dotX + 250, Y(i) + rowH / 2), new Vector2(1000, rowH));
+            Text msg = Label(paper, r.text + because, fs, effect ? Red : Ink, new Vector2(dotX + 310, Y(i) + rowH / 2), new Vector2(950, rowH));
             msg.alignment = TextAnchor.MiddleLeft;
         }
         if (records.Count == 0) Label(paper, "今天沒有做任何決定。", 26, Dim, new Vector2(dotX, top), new Vector2(800, 40));

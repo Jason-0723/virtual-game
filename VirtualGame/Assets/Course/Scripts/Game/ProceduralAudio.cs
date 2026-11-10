@@ -44,4 +44,30 @@ public static class ProceduralAudio
         float local = t < 0.12f ? t : t - 0.12f;
         return 0.5f * Mathf.Sin(2 * Mathf.PI * f * t) * Mathf.Exp(-local * 12f);
     });
+
+    // 心跳：「咚—咚」一拍 0.8 秒，主管靠近時越來越大聲
+    public static AudioClip Heartbeat() => Make("Heartbeat", 0.8f, (t, r) =>
+    {
+        float a = Mathf.Exp(-t * 30f) * Mathf.Sin(2 * Mathf.PI * 55f * t);
+        float b = t > 0.22f ? Mathf.Exp(-(t - 0.22f) * 30f) * Mathf.Sin(2 * Mathf.PI * 50f * t) * 0.7f : 0f;
+        return 0.9f * (a + b);
+    });
+
+    // 警笛：高低兩個音來回切換
+    public static AudioClip Siren() => Make("Siren", 3f, (t, r) =>
+    {
+        float f = (int)(t * 2) % 2 == 0 ? 700f : 950f;
+        return 0.35f * Mathf.Sign(Mathf.Sin(2 * Mathf.PI * f * t)) * 0.5f;
+    });
+
+    // 飛機起飛的低沉轟隆聲：雜音越來越大
+    public static AudioClip Rumble() => Make("Rumble", 4.5f, (t, r) =>
+    {
+        float n = (float)r.NextDouble() * 2 - 1;
+        return n * 0.25f * Mathf.Clamp01(t / 3f) * (0.6f + 0.4f * Mathf.Sin(2 * Mathf.PI * 35f * t));
+    });
+
+    // 鐵門關上：很低的一聲重擊
+    public static AudioClip Thud() => Make("Thud", 1.2f, (t, r) =>
+        Mathf.Exp(-t * 6f) * (0.8f * Mathf.Sin(2 * Mathf.PI * 45f * t) + 0.3f * ((float)r.NextDouble() * 2 - 1)));
 }

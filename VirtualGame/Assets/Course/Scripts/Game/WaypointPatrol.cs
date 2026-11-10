@@ -32,7 +32,7 @@ public class WaypointPatrol : MonoBehaviour
     {
         // 對話框打開時遊戲時間是停的，主管也要停
         DayManager day = DayManager.Instance;
-        bool paused = day == null || day.Ended || day.dialog.IsOpen;
+        bool paused = day == null || day.WorldPaused;   // 詐騙支線時幹部照樣巡邏
         navMeshAgent.isStopped = paused;
         if (animator) animator.speed = paused ? 0 : 1;
         if (footsteps) footsteps.mute = paused;

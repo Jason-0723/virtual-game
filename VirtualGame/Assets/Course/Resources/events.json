@@ -1,47 +1,161 @@
 {
-  "intro": "你是剛畢業半年的軟體工程師。\n\n今天和平常一樣：會議、客訴、臨時插進來的需求、改來改去的規格。沒有人會問你會不會寫程式——他們只想知道「什麼時候好」。\n\n走到黃色光圈的地方處理事情，空檔回自己的座位按 E 工作，撐到 18:00 下班。\n\n操作：W 前進　A／D 轉向　滑鼠選擇　E 開始工作",
-
-  "slots": [580, 630, 680, 790, 850, 910, 1000],
-
-  "main": [
+  "days": [
     {
-      "at": 540, "title": "早上的站立會議", "place": "Meeting",
-      "text": "每天早上大家站著輪流講：昨天做了什麼、今天要做什麼、有沒有卡住。\n\n你負責的「登入功能」已經卡兩天了——別組給你的資料，跟當初說好的不一樣。\n\n輪到你了。",
-      "options": [
-        { "id": "standup-honest", "log": "站會老實說卡住了", "text": "老實說卡住了，請別組幫忙", "progress": 5, "stress": -5, "trust": 10, "life": 0, "result": "別組同事說會後來看。主管點點頭。說出口，其實沒那麼難。" },
-        { "id": "standup-lie", "log": "站會說「快好了，今天可以完成」", "text": "「快好了，今天可以完成。」", "progress": 0, "stress": 10, "trust": 0, "life": 0, "setFlag": "lied", "result": "會議很快結束。但你知道，今天不可能完成。" }
+      "name": "週一・菜鳥報到", "shortName": "週一", "bossSpeed": 1.0, "maxTasks": 2, "taskInterval": { "x": 45, "y": 70 }, "gloom": 0,
+      "intro": "第一週上班。主管給你一個帳號、一台筆電，還有一個沒有說明文件的專案。\n\n走到黃色光圈處理事情；左上角的待辦有倒數，來不及就扣分；空檔回座位按 E 工作，按 Tab 可以摸魚（小心主管）。\n\n撐過週一、週三、週五，就能轉正。\n\n操作：W 前進　A／D 轉向　滑鼠選擇　E 工作　Tab 摸魚",
+      "slots": [640, 700, 800, 920, 990],
+      "main": [
+        {
+          "at": 545, "title": "祖傳專案", "place": "Desk",
+          "text": "前輩留給你的專案資料夾叫 Legacy_v1_final_FINAL2。\n\n沒有說明文件，一跑就是滿滿的紅字。主管說：「這週要接手喔。」",
+          "options": [
+            { "id": "legacy-read", "log": "花時間看懂祖傳專案", "text": "花時間看懂架構，順手補一份說明", "progress": 5, "stress": 5, "trust": 5, "life": 0, "debt": -5, "result": "一個早上過去了，但你終於知道哪裡不能碰。下一個接手的人會感謝你。" },
+            { "id": "legacy-copy", "log": "貼一段網路上的萬用腳本先跑起來", "text": "網路上找一段萬用腳本，先讓它跑起來", "progress": 15, "stress": -5, "trust": 0, "life": 0, "debt": 20, "setFlag": "dirty_env", "result": "紅字不見了！你不太確定那段腳本改了什麼，但它能動。" }
+          ]
+        },
+        {
+          "at": 600, "title": "第一次站立會議", "place": "Meeting",
+          "text": "每天早上大家站著輪流講：昨天做了什麼、今天要做什麼。\n\nPM 看著你：「登入模組今天可以改完嗎？客戶週三要看。」\n\n你知道至少要兩天。",
+          "options": [
+            { "id": "standup-honest", "log": "站會老實說要兩天", "text": "老實說：至少要兩天", "progress": 0, "stress": -5, "trust": -5, "life": 0, "result": "PM 皺眉，但把客戶的時間往後喬了。說出口，其實沒那麼難。" },
+            { "id": "monday-lie", "log": "站會保證「今天下班前搞定」", "text": "「沒問題，今天下班前搞定！」", "progress": 0, "stress": 10, "trust": 10, "life": 0, "setFlag": "monday_lie", "result": "PM 笑了，主管也點頭。但你知道，今天不可能完成。" }
+          ]
+        },
+        {
+          "at": 720, "title": "午休", "place": "",
+          "text": "12:00。同事揪你一起吃飯，你的電腦螢幕還亮著。",
+          "options": [
+            { "id": "d1-lunch-out", "log": "跟同事去吃午餐", "text": "一起去吃飯", "progress": 0, "stress": -10, "trust": 0, "life": 10, "result": "同事說：「前輩是上個月突然離職的，沒人知道為什麼。」" },
+            { "id": "d1-lunch-desk", "log": "叫外送，邊吃邊做", "text": "叫外送，邊吃邊做", "progress": 10, "stress": 5, "trust": 0, "life": -10, "result": "進度多了一點，鍵盤上也多了一點醬汁。" }
+          ]
+        },
+        {
+          "at": 870, "title": "前輩的隨身碟", "place": "Desk",
+          "text": "抽屜深處有一支隨身碟，標籤寫著「週報自動產生器」。\n\n裡面還有一個檔案：辭職信_加密.txt，密碼提示是「1234」。",
+          "options": [
+            { "id": "usb-open", "log": "打開前輩的辭職信", "text": "打開辭職信", "progress": 0, "stress": 3, "trust": 0, "life": 0, "result": "「這裡的事永遠做不完，照顧好自己。\n\n還有——如果哪天你被開除了，千萬別點那種『看廣告就能復活』的獵頭廣告。」" },
+            { "id": "usb-it", "log": "把隨身碟交給 IT", "text": "不亂開，交給 IT 部門", "progress": 0, "stress": 0, "trust": 5, "life": 0, "result": "IT 說：「來路不明的隨身碟不插，這個觀念很好。」" }
+          ]
+        },
+        {
+          "at": 1020, "title": "下班前的程式碼審查", "place": "Desk",
+          "text": "同事請你幫忙審他的程式，裡面有 2000 行沒縮排的 if-else。\n\n18:00 快到了。",
+          "options": [
+            { "id": "review1-careful", "log": "一段一段審，留具體意見", "text": "一段一段看，留下具體意見", "progress": 5, "stress": 5, "trust": 5, "life": -5, "result": "你找到三個真正的錯誤。同事說：「欠你一杯咖啡。」" },
+            { "id": "review1-approve", "log": "沒看就按 Approve", "text": "直接按 Approve，下班要緊", "progress": 0, "stress": -5, "trust": 0, "life": 5, "debt": 15, "result": "你準時下班了。那 2000 行，現在也算你看過的。" }
+          ]
+        }
       ]
     },
     {
-      "at": 720, "title": "午休", "place": "",
-      "text": "12:00。同事揪你一起吃飯，你的電腦螢幕還亮著。",
-      "options": [
-        { "id": "lunch-out", "log": "跟同事去吃午餐", "text": "一起去吃飯", "progress": 0, "stress": -10, "trust": 0, "life": 10, "result": "吃飯時聽到隔壁組好像要裁員。大家都沒再說話。" },
-        { "id": "lunch-desk", "log": "叫外送，邊吃邊做", "text": "叫外送，邊吃邊做", "progress": 10, "stress": 5, "trust": 0, "life": -10, "result": "進度多了一點，鍵盤上也多了一點醬汁。" }
+      "name": "週三・上線連環爆", "shortName": "週三", "bossSpeed": 1.3, "maxTasks": 3, "taskInterval": { "x": 30, "y": 50 }, "gloom": 0.3,
+      "intro": "今天是新版本上線日。\n\n主管巡邏得比較勤，待辦會一件接一件來。\n\n週一埋下的東西，今天會一一長出來。",
+      "slots": [640, 770, 880, 1000],
+      "main": [
+        {
+          "at": 545, "title": "上線日的站會", "place": "Meeting",
+          "text": "上線日的站會，每個人臉色都不太好。主管問：「有沒有任何風險？」",
+          "options": [
+            { "id": "standup2-honest", "log": "站會報告真實風險", "text": "報告真實的進度和風險", "progress": 0, "stress": 0, "trust": 5, "life": 0, "result": "主管把風險寫在白板上：「有說就好，我們一起盯。」" },
+            { "id": "standup2-fine", "log": "站會說「都在掌握中」", "text": "「都在掌握中。」", "progress": 0, "stress": 5, "trust": 0, "life": 0, "result": "會議兩分鐘就結束了。你的胃開始痛。" }
+          ]
+        },
+        {
+          "at": 600, "title": "測試環境崩潰了", "place": "Desk", "onlyIfFlag": "dirty_env", "causedBy": ["legacy-copy"],
+          "text": "週一那段萬用腳本，把測試機的設定全改掉了。\n\n今天要上線，所有人都卡在你這裡。",
+          "options": [
+            { "id": "dirty-reinstall", "log": "馬上重灌測試環境", "text": "馬上重灌環境（45 秒內打完）", "progress": 0, "stress": 10, "trust": 0, "life": 0, "startTask": "reinstall", "result": "你打開終端機，手心在冒汗。左上角多了一個倒數。" },
+            { "id": "dirty-help", "log": "請同事幫忙救環境", "text": "請同事幫忙", "progress": -5, "stress": 5, "trust": -5, "life": 0, "result": "同事花了一小時救回來，順便看到那段腳本。他什麼也沒說。" }
+          ]
+        },
+        {
+          "at": 620, "title": "PM 帶主管來驗收", "place": "", "onlyIfFlag": "monday_lie", "causedBy": ["monday-lie"],
+          "text": "PM 和主管站在你身後：\n\n「週一不是說當天搞定？客戶在線上等 demo。」",
+          "options": [
+            { "id": "lie-rush", "log": "說謊被抓，60 秒狂打字補進度", "text": "「給我 60 秒！」（狂打字補完）", "progress": 0, "stress": 15, "trust": 0, "life": 0, "startTask": "login-rush", "result": "你衝回座位。左上角跳出一個 60 秒的倒數。" },
+            { "id": "lie-confess", "log": "說謊被抓，坦白週一做不完", "text": "坦白：週一其實知道做不完", "progress": 0, "stress": 5, "trust": -15, "life": 0, "result": "主管嘆了口氣：「下次早點講，我可以幫你找人。」" }
+          ]
+        },
+        {
+          "at": 720, "title": "午休", "place": "",
+          "text": "12:00。上線日的午餐，大家都盯著手機上的監控畫面吃飯。",
+          "options": [
+            { "id": "d2-lunch-out", "log": "上線日還是去吃了午餐", "text": "還是去吃飯，吃飽才有力氣", "progress": 0, "stress": -10, "trust": 0, "life": 10, "result": "吃到一半，群組就響了。但至少你吃完了。" },
+            { "id": "d2-lunch-desk", "log": "上線日在座位啃麵包", "text": "在座位啃麵包盯監控", "progress": 10, "stress": 5, "trust": 5, "life": -10, "result": "主管經過看到你，點了點頭。麵包很乾。" }
+          ]
+        },
+        {
+          "at": 810, "title": "客戶 Demo 白畫面", "place": "",
+          "text": "業務打電話來吼：「客戶那邊畫面全白！老闆就坐在旁邊！」\n\n你打開錯誤紀錄，一堆看不懂的錯誤訊息。",
+          "options": [
+            { "id": "demo-fix", "log": "查記錄檔找真正的錯誤", "text": "查記錄檔，找出真正的錯誤", "progress": 10, "stress": 10, "trust": 5, "life": 0, "result": "二十分鐘後，畫面回來了。原因是一個設定檔少了一行。" },
+            { "id": "demo-leak", "log": "把客戶資料庫備份傳到個人雲端", "text": "把客戶的正式資料庫備份傳到個人雲端，回家慢慢查", "gameOver": "客戶的個資出現在你的個人雲端硬碟。資安稽核當天就發現了，法務部帶著你的離職單走過來。\n\n公司資料不能離開公司——這是資工人的第一條天條。" },
+            { "id": "demo-hide", "log": "用 CSS 把錯誤訊息藏起來", "text": "用 CSS 把錯誤訊息藏起來（display: none）", "progress": 5, "stress": -5, "trust": 0, "life": 0, "debt": 25, "setFlag": "hidden_bug", "result": "畫面不白了。業務說客戶很滿意。錯誤還在，只是沒人看得到。" }
+          ]
+        },
+        {
+          "at": 930, "title": "機房跳電", "place": "", "bug": true,
+          "text": "警鈴大作！機房的冷氣跳電，伺服器溫度一直往上升。\n\n機房在辦公室右側牆邊。",
+          "options": [
+            { "id": "server-go", "log": "衝去機房重開電源", "text": "衝去機房重開電源（30 秒）", "progress": 0, "stress": 10, "trust": 0, "life": 0, "startTask": "server-run", "result": "你站起來就跑。小心別撞到主管。" },
+            { "id": "server-ask", "log": "在群組問有沒有人在機房", "text": "在群組問有沒有人在機房", "progress": 0, "stress": 10, "trust": -5, "life": 0, "result": "五分鐘後才有人回：「我剛到。」兩台伺服器已經自動關機了。" }
+          ]
+        },
+        {
+          "at": 1050, "title": "陌生人的私訊", "place": "",
+          "text": "Slack 跳出一則外部訊息：\n\n「厭倦低薪加班了嗎？海外頂尖科技園區誠徵 C# 工程師，月薪 25 萬，包機票住宿，免經驗！」",
+          "options": [
+            { "id": "hh-ignore", "log": "陌生獵頭私訊：已讀不回", "text": "已讀不回", "progress": 0, "stress": 0, "trust": 0, "life": 0, "result": "你把訊息封存了。哪有這麼好的事。" },
+            { "id": "hh-reply", "log": "陌生獵頭私訊：回覆有興趣", "text": "回覆：「有興趣，可以多說一點嗎？」", "progress": 0, "stress": -5, "trust": 0, "life": 0, "setFlag": "headhunter", "result": "對方秒回：「那先加個 LINE 吧，名額有限喔 😊」" }
+          ]
+        }
       ]
     },
     {
-      "at": 960, "title": "主管來問進度", "place": "", "onlyIfFlag": "lied", "causedBy": ["standup-lie"],
-      "text": "主管走到你旁邊：\n\n「早上不是說登入今天會好？我已經跟客戶說了。」\n\n你的問題，到現在還沒解決。",
-      "options": [
-        { "id": "caught-sorry", "log": "被抓包，道歉說明原因", "text": "道歉，說明真正卡住的原因", "progress": 0, "stress": 10, "trust": -5, "life": 0, "result": "主管嘆了口氣：「下次早點講，我可以幫你找人。」" },
-        { "id": "caught-delay", "log": "被抓包，說「再給我一點時間」", "text": "「再給我一點時間⋯⋯」", "progress": 0, "stress": 20, "trust": -15, "life": -5, "result": "你知道，這代表今晚要加班了。" }
-      ]
-    },
-    {
-      "at": 1050, "title": "下班前出事了", "place": "Desk", "causedBy": ["complaint-copy", "excel-yes", "pm-yes", "review-whatever", "bug1-patch"],
-      "text": "說好今天要讓新功能上線，讓所有人都能用。\n\n17:30，最後測試時，整個網站突然登入不了。\n\n手機跳出家人的訊息：「今天幾點回家吃飯？」",
-      "options": [
-        { "id": "launch-stay", "log": "留下來修上線的問題", "text": "留下來修，修好再走", "progress": 20, "stress": 15, "trust": 10, "life": -20, "setFlag": "overtime", "result": "21:47，你終於找到原因：一個設定少打了一行。上線成功。晚餐是便利商店的微波便當。" },
-        { "id": "launch-handoff", "log": "交接給值班同事，準時下班", "text": "把狀況寫清楚交給值班同事，準時下班", "progress": 0, "stress": 5, "trust": 0, "life": 10, "result": "你把問題和發生步驟寫得很清楚。好好交接，也是一種專業。" }
+      "name": "週五・裁員名單", "shortName": "週五", "bossSpeed": 1.6, "maxTasks": 3, "taskInterval": { "x": 22, "y": 38 }, "gloom": 1,
+      "intro": "週五。窗外下著大雨。\n\n聽說今天會公布第四季的人事調整。主管一整天都在巡。",
+      "slots": [640, 780, 960],
+      "main": [
+        {
+          "at": 560, "title": "資料庫停不下來", "place": "Desk", "onlyIfFlag": "hidden_bug", "causedBy": ["demo-hide"],
+          "text": "週三藏起來的錯誤，讓資料庫一直重複寫入同一筆資料。\n\n硬碟快滿了，網站隨時會掛。",
+          "options": [
+            { "id": "db-fix", "log": "修資料庫停不下來的寫入", "text": "馬上修（50 秒內打完）", "progress": 0, "stress": 10, "trust": 0, "life": 0, "startTask": "db-fix", "result": "你終於知道，藏起來的錯誤不會消失，只會長大。" },
+            { "id": "db-report", "log": "回報主管：是週三藏起來的錯", "text": "回報主管，承認是週三藏起來的", "progress": 0, "stress": 5, "trust": -10, "life": 0, "debt": -15, "result": "主管臉色很難看，但他叫了兩個人來幫你。" }
+          ]
+        },
+        {
+          "at": 720, "title": "誤傳的名單", "place": "Pantry",
+          "text": "HR 不小心把「第四季人事調整.xlsx」傳到全公司群組，三秒後收回。\n\n茶水間裡，大家都在偷偷傳截圖。",
+          "options": [
+            { "id": "list-peek", "log": "偷看裁員名單截圖", "text": "看一眼截圖", "progress": 0, "stress": 15, "trust": 0, "life": 0, "result": "你和隔壁同事，都在「觀察名單」上。" },
+            { "id": "list-skip", "log": "不看名單，回座位做事", "text": "不看，回座位做事", "progress": 5, "stress": 0, "trust": 5, "life": 0, "result": "你決定把今天做好。剩下的，不是你能控制的。" }
+          ]
+        },
+        {
+          "at": 900, "title": "網站被攻擊", "place": "", "bug": true,
+          "text": "網站流量突然暴增十倍，全是假的請求。\n\n同時，主管正在巡邏。",
+          "options": [
+            { "id": "ddos-fight", "log": "擋下 DDoS 攻擊", "text": "擋流量（45 秒狂打字）", "progress": 0, "stress": 10, "trust": 0, "life": 0, "startTask": "ddos", "result": "你打開防火牆設定，手指飛快。" },
+            { "id": "ddos-off", "log": "直接把網站關掉", "text": "直接把網站關掉", "progress": -10, "stress": 0, "trust": -10, "life": 0, "result": "攻擊停了，生意也停了。業務在群組裡打了一串問號。" }
+          ]
+        },
+        {
+          "at": 1050, "title": "主管的請求", "place": "Meeting",
+          "text": "主管把會議室的門關上：\n\n「週三那個大漏洞，其實是我之前寫的。報告上你幫我簽名，試用期我保你過。」",
+          "options": [
+            { "id": "boss-scapegoat", "log": "幫主管背鍋", "text": "幫主管背鍋", "progress": 0, "stress": 15, "trust": 20, "life": -5, "setFlag": "scapegoat", "result": "主管拍拍你的肩：「懂事。」你簽名的手有點抖。" },
+            { "id": "boss-whistle", "log": "拒絕背鍋，保留證據交給技術長", "text": "拒絕，並把證據交給技術長", "progress": 0, "stress": 5, "trust": -10, "life": 5, "setFlag": "whistle", "result": "技術長看完記錄，說：「謝謝你，這件事我來處理。」" }
+          ]
+        }
       ]
     }
   ],
 
   "pool": [
     {
-      "title": "37 則未讀", "place": "", "maxAt": 719, "weight": 1.5,
-      "text": "你打開電腦。\n\n通訊軟體 37 則未讀，其中一則是主管：「中午前先看一下我傳的東西。」\n\n昨天下班前寫的東西，還沒存到公司的系統裡。",
+      "title": "37 則未讀", "place": "", "days": [1], "maxAt": 719, "weight": 1.5,
+      "text": "你打開電腦。\n\n通訊軟體 37 則未讀，其中一則是主管：「中午前先看一下我傳的東西。」\n\n昨天寫的東西，還沒存到公司的系統裡。",
       "options": [
         { "id": "inbox-boss", "log": "先回主管的訊息", "text": "先回主管的訊息", "progress": 0, "stress": 5, "trust": 5, "life": 0, "result": "看完已經過了半小時。主管傳的是一份 30 頁的文件。" },
         { "id": "inbox-save", "log": "先把昨天的東西存好", "text": "先把昨天的東西存好", "progress": 10, "stress": 0, "trust": 0, "life": 0, "result": "東西安全了。工程師最怕的不是寫不出來，是寫好的不見了。" },
@@ -49,34 +163,34 @@
       ]
     },
     {
-      "title": "客訴：結帳金額不對", "place": "Desk", "maxAt": 719, "weight": 3,
-      "text": "客服轉來一則客訴：「我買三件，怎麼只算兩件的錢？」\n\n公司的購物網站每多錯一分鐘，就可能多一位客人吃虧。你會先：",
+      "title": "客訴：結帳金額不對", "place": "Desk", "days": [1, 2], "weight": 2,
+      "text": "客服轉來一則客訴：「我買三件，怎麼只算兩件的錢？」\n\n公司的購物網站每多錯一分鐘，就可能多一位客人吃虧。",
       "options": [
-        { "id": "complaint-repro", "log": "照客人的步驟重現問題再修", "text": "照著客人的步驟自己買一次，確認問題", "progress": 20, "stress": -5, "trust": 5, "life": 0, "result": "你重現了問題：第一件商品沒被算進去，十分鐘就修好了。\n\n工程師修錯誤的第一步，通常是先讓錯誤「再發生一次」。" },
+        { "id": "complaint-repro", "log": "照客人的步驟重現問題再修", "text": "照著客人的步驟自己買一次，確認問題", "progress": 20, "stress": -5, "trust": 5, "life": 0, "result": "你重現了問題，十分鐘就修好了。\n\n工程師修錯誤的第一步，通常是先讓錯誤「再發生一次」。" },
         { "id": "complaint-copy", "log": "直接複製網路上的程式貼上", "text": "先做出來就好：網路上找一段程式直接貼上", "progress": 15, "stress": -5, "trust": 0, "life": 0, "debt": 35, "result": "客訴暫時不見了。你不太確定那段程式在做什麼，但它能動。" },
-        { "id": "complaint-blame", "log": "回客服「這不是我寫的」", "text": "回客服：「這不是我寫的」", "progress": 0, "stress": 5, "trust": -10, "life": 0, "result": "寫這段的同事上個月離職了。現在，它就是你的。" }
+        { "id": "complaint-blame", "log": "回客服「這不是我寫的」", "text": "回客服：「這不是我寫的」", "progress": 0, "stress": 5, "trust": -10, "life": 0, "result": "寫這段的前輩已經離職了。現在，它就是你的。" }
       ]
     },
     {
-      "title": "業務傳訊息來", "place": "", "maxAt": 719, "weight": 1.5,
-      "text": "業務：「嗨～那個可以把資料匯出成 Excel 的功能，今天可以有嗎？客戶下午要看 🙏」\n\n這件事沒有人跟你說過，也不在這次的工作清單上。",
+      "title": "業務傳訊息來", "place": "", "days": [1, 2], "weight": 1.5,
+      "text": "業務：「嗨～那個可以把資料匯出成 Excel 的功能，今天可以有嗎？客戶下午要看 🙏」\n\n這件事沒有人跟你說過。",
       "options": [
         { "id": "excel-no", "log": "請 PM 把 Excel 功能排進下一次", "text": "「今天沒辦法，我請 PM 排進下一次」", "progress": 0, "stress": 0, "trust": 5, "life": 0, "result": "業務回了一個「好吧😢」。拒絕很難，但亂答應更慘。" },
-        { "id": "excel-yes", "log": "答應業務，趕出 Excel 匯出", "text": "「我試試看！」", "progress": -10, "stress": 15, "trust": 0, "life": -5, "debt": 15, "result": "你午餐前趕出來了，但只測了一種情況。原本該做的事又往後延了。" },
+        { "id": "excel-yes", "log": "答應業務，趕出 Excel 匯出", "text": "「我試試看！」", "progress": -10, "stress": 15, "trust": 0, "life": -5, "debt": 15, "result": "你趕出來了，但只測了一種情況。原本該做的事又往後延了。" },
         { "id": "excel-ignore", "log": "已讀業務，先不回", "text": "先已讀，等等再說", "progress": 0, "stress": 5, "trust": -10, "life": 0, "result": "二十分鐘後，業務直接走到你的座位旁邊。" }
       ]
     },
     {
-      "title": "新人來問問題", "place": "", "weight": 1,
-      "text": "上週剛來的新人小聲問你：「請問⋯⋯測試環境要怎麼登入？文件上找不到。」\n\n你自己也是半年前才搞懂的。",
+      "title": "新人來問問題", "place": "", "days": [2, 3], "weight": 1,
+      "text": "這週剛來的新人小聲問你：「請問⋯⋯測試環境要怎麼登入？文件上找不到。」\n\n你自己也是兩天前才搞懂的。",
       "options": [
         { "id": "junior-help", "log": "花時間帶新人", "text": "帶他一步一步設定，順便寫進文件", "progress": -5, "stress": 0, "trust": 5, "life": 5, "result": "花了二十分鐘，但下一個新人就不用再問了。" },
         { "id": "junior-busy", "log": "請新人自己再找找", "text": "「我現在有點忙，你再找找看」", "progress": 0, "stress": 5, "trust": -5, "life": -5, "result": "他點點頭走了。下午你看到他對著螢幕發呆。" }
       ]
     },
     {
-      "title": "規格又改了", "place": "PM", "minAt": 720, "weight": 2,
-      "text": "PM（負責決定產品要做成什麼樣子的人）找你：\n\n「老闆說登入要改成用手機號碼，不要用 Email 了。應該不難吧？下週上線。」\n\n你上午才剛把 Email 登入做好。",
+      "title": "規格又改了", "place": "PM", "days": [2, 3], "weight": 2,
+      "text": "PM 找你：\n\n「老闆說登入要改成用手機號碼，不要用 Email 了。應該不難吧？下週上線。」",
       "options": [
         { "id": "pm-time", "log": "跟 PM 說要多三天", "text": "可以改，但要多三天", "progress": -5, "stress": 5, "trust": 10, "life": 0, "result": "PM 去跟老闆談時程。說清楚要多久，是工程師最重要的能力之一。" },
         { "id": "pm-yes", "log": "說「應該不難」直接答應改規格", "text": "「應該不難」，直接答應", "progress": -15, "stress": 15, "trust": 0, "life": -5, "debt": 15, "result": "後來發現要串簡訊、改資料表、重做畫面⋯⋯你只好把很多地方先隨便接起來。" },
@@ -84,33 +198,33 @@
       ]
     },
     {
-      "title": "同事幫你批改", "place": "Desk", "minAt": 720, "weight": 2,
-      "text": "工程師寫完的東西，要先給資深同事檢查才能放上去，就像交報告前請人幫忙看。\n\n他留了 14 則意見，其中一則寫：「這個問題上次講過了。」",
+      "title": "同事幫你批改", "place": "Desk", "days": [2], "weight": 2,
+      "text": "你寫完的東西，要先給資深同事檢查才能放上去。\n\n他留了 14 則意見，其中一則寫：「這個問題上次講過了。」",
       "options": [
         { "id": "review-fix", "log": "一則一則改批改意見", "text": "一則一則改，順便問清楚為什麼", "progress": 10, "stress": 5, "trust": 10, "life": 0, "result": "改完時你學到三個新方法。被挑錯很痛，但這是成長最快的時候。" },
         { "id": "review-whatever", "log": "回批改「能動就好了吧」", "text": "回他：「能動就好了吧」", "progress": 0, "stress": 10, "trust": -15, "life": 0, "debt": 20, "result": "他按了「同意」，但留了一句：「出事你負責。」" }
       ]
     },
     {
-      "title": "線上錯誤：結帳又算錯了", "place": "Desk", "minAt": 720, "weight": 0.2, "debtWeight": 1.5, "bug": true,
-      "causedBy": ["complaint-copy", "excel-yes", "pm-yes", "review-whatever"],
-      "text": "錯誤通知一直響：結帳頁面在某些情況下又算錯錢了，而且這次是多收。\n\n你打開錯誤紀錄，出事的地方，正是今天趕出來的那幾段。",
+      "title": "線上錯誤：結帳又算錯了", "place": "Desk", "days": [2, 3], "weight": 0.2, "debtWeight": 1.5, "bug": true,
+      "causedBy": ["complaint-copy", "excel-yes", "pm-yes", "review-whatever", "legacy-copy", "review1-approve"],
+      "text": "錯誤通知一直響：結帳頁面又算錯錢了，而且這次是多收。\n\n出事的地方，正是之前趕出來的那幾段。",
       "options": [
-        { "id": "bug1-root", "log": "把那段程式看懂、整段重寫", "text": "停下手邊的事，把那段程式看懂、重寫", "progress": -10, "stress": 10, "trust": 5, "life": 0, "debt": -25, "result": "花了一個多小時，但你終於知道它在做什麼了。早上省下的時間，下午加倍還。" },
+        { "id": "bug1-root", "log": "把那段程式看懂、整段重寫", "text": "停下手邊的事，把那段程式看懂、重寫", "progress": -10, "stress": 10, "trust": 5, "life": 0, "debt": -25, "result": "花了一個多小時，但你終於知道它在做什麼了。之前省下的時間，現在加倍還。" },
         { "id": "bug1-patch", "log": "在出錯的地方再補一個特例", "text": "在出錯的地方再補一個特例，先讓它不要錯", "progress": 0, "stress": 5, "trust": -5, "life": 0, "debt": 15, "result": "錯誤通知安靜了。你在程式裡留下一行註解：「不要動這裡」。" }
       ]
     },
     {
-      "title": "「你的程式把我的功能弄壞了」", "place": "", "minAt": 720, "weight": 0.2, "debtWeight": 1.2, "bug": true,
-      "causedBy": ["complaint-copy", "pm-yes", "review-whatever"],
-      "text": "隔壁同事傳訊息：「欸，你今天放上去的東西，把會員頁弄壞了。客服電話已經在響了。」\n\n你今天改了很多地方，但沒有一個有寫測試。",
+      "title": "「你的程式把我的功能弄壞了」", "place": "", "days": [2, 3], "weight": 0.2, "debtWeight": 1.2, "bug": true,
+      "causedBy": ["complaint-copy", "pm-yes", "review-whatever", "legacy-copy", "review1-approve"],
+      "text": "隔壁同事傳訊息：「欸，你放上去的東西，把會員頁弄壞了。客服電話已經在響了。」\n\n你改了很多地方，但沒有一個有寫測試。",
       "options": [
         { "id": "bug2-own", "log": "承認是自己的，先一起修", "text": "「是我的，我先過去一起看」", "progress": -10, "stress": 10, "trust": 10, "life": 0, "debt": -10, "result": "你們半小時就找到原因。他說：「下次放上去前，跑一下測試就好。」" },
-        { "id": "bug2-deny", "log": "說「應該不是我吧」", "text": "「應該不是我吧？我那邊沒動到會員頁」", "progress": 0, "stress": 15, "trust": -15, "life": 0, "result": "一小時後，紀錄清楚顯示是你的修改。整個群組都看到了。" }
+        { "id": "bug2-deny", "log": "說「應該不是我吧」", "text": "「應該不是我吧？我沒動到會員頁」", "progress": 0, "stress": 15, "trust": -15, "life": 0, "result": "一小時後，紀錄清楚顯示是你的修改。整個群組都看到了。" }
       ]
     },
     {
-      "title": "茶水間", "place": "Pantry", "minAt": 720, "weight": 0.5, "stressWeight": 0.4,
+      "title": "茶水間", "place": "Pantry", "weight": 0.5, "stressWeight": 0.4,
       "text": "同事拍拍你：「你臉色好差，去茶水間喘口氣吧。」\n\n咖啡機正好空著。",
       "options": [
         { "id": "pantry-rest", "log": "在茶水間休息十分鐘", "text": "泡杯咖啡，看窗外十分鐘", "progress": 0, "stress": -15, "trust": 0, "life": 5, "result": "十分鐘後回到座位，剛才卡住的地方突然想通了。" },
@@ -118,12 +232,131 @@
       ]
     },
     {
-      "title": "主管約一對一", "place": "Meeting", "minAt": 720, "weight": 0.3, "distrustWeight": 0.5,
+      "title": "主管約一對一", "place": "Meeting", "weight": 0.3, "distrustWeight": 0.5,
       "text": "主管傳訊息：「方便來會議室一下嗎？」\n\n你把手機翻過來，深呼吸。",
       "options": [
         { "id": "oneonone-open", "log": "跟主管坦白最近的困難", "text": "坦白說最近卡在哪裡，需要什麼幫忙", "progress": 0, "stress": -5, "trust": 15, "life": 0, "result": "主管說：「我比較怕你什麼都不講。」他幫你把一件事轉給別人。" },
         { "id": "oneonone-fine", "log": "跟主管說「都還好」", "text": "「都還好，沒問題」", "progress": 0, "stress": 10, "trust": -5, "life": 0, "result": "會議五分鐘就結束了。主管看起來不太相信。" }
       ]
+    },
+
+    {
+      "title": "測試資料太亂", "place": "Desk", "days": [1, 2], "weight": 1,
+      "text": "資料庫裡塞滿了奇怪的測試帳號，查東西很慢。\n\n主管說：「清一下吧，越快越好。」",
+      "options": [
+        { "id": "clean-script", "log": "寫腳本只清測試資料，先在測試環境跑", "text": "寫一支只清測試資料的腳本，先在測試環境跑", "progress": 10, "stress": 5, "trust": 5, "life": 0, "result": "跑了兩次確認沒問題，才放到正式環境。慢，但安心。" },
+        { "id": "clean-delete", "log": "正式資料庫 DELETE 沒加 WHERE", "text": "在正式資料庫執行 DELETE FROM Users;（沒加 WHERE）", "gameOver": "按下 Enter 的瞬間，全公司一百萬個會員帳號歸零。\n\n資料庫管理員抱著他的乖乖衝過來。你今天的工作，和這份工作，都結束了。" },
+        { "id": "clean-dba", "log": "請資料庫管理員幫忙清", "text": "請資料庫管理員幫忙", "progress": 0, "stress": 0, "trust": 0, "life": 0, "result": "他說：「下次自己來，我教你。」" }
+      ]
+    },
+    {
+      "title": "金鑰好麻煩", "place": "", "weight": 1,
+      "text": "每次測試都要輸入一長串雲端金鑰，你覺得好麻煩。",
+      "options": [
+        { "id": "key-vault", "log": "把金鑰放進密鑰管理服務", "text": "放進公司的密鑰管理服務", "progress": 5, "stress": 0, "trust": 5, "life": 0, "result": "設定了半小時，之後再也不用手打。" },
+        { "id": "key-github", "log": "把雲端金鑰寫死推到公開 GitHub", "text": "把雲端金鑰寫死在程式裡，推到公開的 GitHub 方便在家寫", "gameOver": "三分鐘後，國外的掃描機器人找到了那串金鑰。\n\n隔天早上，公司收到一張 300 萬美金的雲端帳單。" },
+        { "id": "key-env", "log": "把金鑰存在本機環境變數", "text": "存在自己電腦的環境變數", "progress": 0, "stress": 0, "trust": 0, "life": 0, "result": "暫時可以用，至少沒放進程式碼裡。" }
+      ]
+    },
+    {
+      "title": "合併衝突", "place": "Desk", "days": [2, 3], "weight": 1,
+      "text": "你的分支和資深前輩的分支衝突了，衝突的地方有兩百多行。",
+      "options": [
+        { "id": "merge-pair", "log": "找前輩一起解衝突", "text": "找前輩一起解", "progress": 5, "stress": 5, "trust": 5, "life": 0, "result": "四十分鐘後解完。前輩說：「下次早點合，衝突會小很多。」" },
+        { "id": "merge-force", "log": "git push --force 蓋掉全組", "text": "直接 git push --force，用我的版本蓋掉", "gameOver": "全組這禮拜寫的程式，一瞬間全部消失。\n\n主管默默走過來，拔掉了你的網路線。" },
+        { "id": "merge-later", "log": "先開新分支晚點再合", "text": "先開新分支，晚點再合", "progress": 0, "stress": 5, "trust": 0, "life": 0, "debt": 10, "result": "衝突沒有消失，只是被推到明天。" }
+      ]
+    },
+    {
+      "title": "看不懂的核心程式", "place": "Desk", "weight": 1,
+      "text": "客戶的交易核心程式寫得很複雜，你看了一小時還是不懂。",
+      "options": [
+        { "id": "core-ask", "log": "問寫這段的前輩", "text": "去問寫這段的前輩", "progress": 10, "stress": 0, "trust": 5, "life": 0, "result": "前輩畫了一張圖，十分鐘就講懂了。" },
+        { "id": "core-ai", "log": "把保密原始碼和客戶個資貼給線上 AI", "text": "把整包原始碼和客戶個資貼給免費的線上 AI 幫忙重構", "gameOver": "那些程式碼受保密協定保護，個資更是不能外流。\n\n法務部當天就找上你。違反營業秘密和個資法，不是一句「我只是想快一點」能解決的。" },
+        { "id": "core-read", "log": "自己慢慢讀核心程式", "text": "自己慢慢讀", "progress": 5, "stress": 10, "trust": 0, "life": -5, "result": "下班前終於看懂一半。" }
+      ]
+    },
+    {
+      "title": "老闆忘記密碼", "place": "", "weight": 1,
+      "text": "老闆又忘記後台的測試帳號密碼了，叫你「改一下讓我不會忘」。",
+      "options": [
+        { "id": "pw-manager", "log": "幫老闆設定密碼管理器", "text": "幫他裝一個密碼管理器", "progress": 0, "stress": 0, "trust": 10, "life": 0, "result": "老闆很滿意：「這個好用！」" },
+        { "id": "pw-plain", "log": "把使用者密碼改成明文放公開雲端", "text": "把所有使用者的密碼改成明文，存成 Excel 放到公開雲端", "gameOver": "資安稽核員看到那份 Excel，當場倒吸一口氣。\n\n密碼一定要雜湊加密，這是寫在每一本教科書第一章的事。" },
+        { "id": "pw-reset", "log": "教老闆用忘記密碼功能", "text": "教他用「忘記密碼」功能", "progress": 0, "stress": 5, "trust": 0, "life": 0, "result": "老闆說：「太麻煩了吧。」但他還是學會了。" }
+      ]
+    },
+    {
+      "title": "測試一直不過", "place": "Desk", "days": [2, 3], "weight": 1,
+      "text": "自動化測試一直失敗，上線卡住了。\n\n五分鐘後就要上線。",
+      "options": [
+        { "id": "ci-fix", "log": "修好真正的錯誤再上線", "text": "修好真正的錯誤再上線", "progress": 5, "stress": 10, "trust": 5, "life": 0, "result": "晚了十分鐘上線，但上線後什麼事都沒發生。這就是最好的結果。" },
+        { "id": "ci-fake", "log": "把測試全改成 assert(true)", "text": "把測試全改成 assert(true)，例外全部吞掉", "gameOver": "上線後，系統安安靜靜地把每一筆訂單金額都算成 0 元。\n\n測試是用來保護你的，不是用來騙過的。" },
+        { "id": "ci-delay", "log": "跟 PM 說要延後半小時上線", "text": "跟 PM 說要延後半小時", "progress": 0, "stress": 5, "trust": -5, "life": 0, "result": "PM 不太開心，但同意了。" }
+      ]
+    },
+    {
+      "title": "硬碟快滿了", "place": "", "days": [2, 3], "weight": 1, "bug": true,
+      "text": "正式機的硬碟用量 98%，監控一直在叫。",
+      "options": [
+        { "id": "disk-logs", "log": "清掉舊的記錄檔", "text": "清掉 30 天前的舊記錄檔", "progress": 5, "stress": 0, "trust": 5, "life": 0, "result": "空出 40%。你順手設定了自動清理。" },
+        { "id": "disk-rm", "log": "在正式機打 sudo rm -rf /*", "text": "照網友推薦的瘦身神指令，在正式機打 sudo rm -rf /*", "gameOver": "終端機安靜了。螢幕黑了。\n\n公司的網站、資料庫和備份，一起被你刪光了。" },
+        { "id": "disk-ask", "log": "申請加硬碟", "text": "申請加硬碟", "progress": 0, "stress": 5, "trust": 0, "life": 0, "result": "採購要三天。這三天你每小時都要看一次監控。" }
+      ]
+    },
+    {
+      "title": "PM 嫌網頁慢", "place": "PM", "days": [1, 2], "weight": 1,
+      "text": "PM：「網頁載入要兩秒，太慢了，要讓客戶覺得我們有在升級。」",
+      "options": [
+        { "id": "perf-measure", "log": "量測哪裡慢再優化", "text": "先量測哪裡慢，再優化", "progress": 10, "stress": 5, "trust": 5, "life": 0, "result": "原來是一張 8MB 的圖片。壓縮後，載入只要 0.4 秒。" },
+        { "id": "perf-sleep", "log": "故意加 Sleep 再賣加速", "text": "故意加 Sleep(5000)，再跟 PM 說付錢升級就會變快", "gameOver": "技術長在審程式碼時看到了那一行。\n\n這招被當成都市傳說很多年了，你是第一個真的這樣做的人。" },
+        { "id": "perf-explain", "log": "跟 PM 解釋兩秒其實正常", "text": "解釋兩秒其實正常", "progress": 0, "stress": 5, "trust": -5, "life": 0, "result": "PM 聽不太懂，但暫時放過你了。" }
+      ]
+    },
+    {
+      "title": "連不上測試資料庫", "place": "", "weight": 1,
+      "text": "你在家想連公司的測試資料庫，但連接埠好像被擋住了。",
+      "options": [
+        { "id": "net-vpn", "log": "請網管開 VPN 帳號", "text": "請網管開一個 VPN 帳號", "progress": 5, "stress": 0, "trust": 5, "life": 0, "result": "隔天就開好了，還附了一份使用說明。" },
+        { "id": "net-open", "log": "把防火牆全關、密碼改 123456", "text": "把防火牆全關、所有連接埠對外開放，管理員密碼改成 123456", "gameOver": "半小時後，公司每台電腦的桌面都變成了勒索病毒的紅字。\n\n防火牆不是障礙，是門鎖。" },
+        { "id": "net-local", "log": "改用本機資料庫測試", "text": "改用自己電腦的資料庫測", "progress": 0, "stress": 0, "trust": 0, "life": 0, "result": "資料比較舊，但夠用了。" }
+      ]
+    },
+    {
+      "title": "年終獎金名單", "place": "", "weight": 1,
+      "text": "收到一封信，主旨是「【急件】全體員工年終獎金領取名單.exe」。\n\n寄件人：hr@g00gle-company-vip.ru",
+      "options": [
+        { "id": "phish-report", "log": "回報可疑信件給資安", "text": "回報資安部門", "progress": 0, "stress": 0, "trust": 10, "life": 0, "result": "資安部門回信：「這是釣魚演練，恭喜你通過了！」" },
+        { "id": "phish-open", "log": "用管理員身分打開釣魚信還轉發全公司", "text": "用系統管理員身分打開，還轉發全公司叫大家快領", "gameOver": "這是資安部門的釣魚演練。\n\n全公司只有你一個人點開，而且還幫忙轉發。演練報告上，你的名字被放大加粗。" },
+        { "id": "phish-delete", "log": "直接刪掉可疑信件", "text": "直接刪掉", "progress": 0, "stress": 0, "trust": 0, "life": 0, "result": "刪掉了。雖然回報會更好，但至少沒點開。" }
+      ]
     }
+  ],
+
+  "tasks": [
+    { "id": "copier", "title": "影印機卡紙", "place": "Pantry", "seconds": 35, "random": true },
+    { "id": "delivery", "title": "幫主管把外送拿到會議室", "place": "Meeting", "seconds": 40, "random": true },
+    { "id": "pm-call", "title": "PM：可以過來一下嗎？", "place": "PM", "seconds": 35, "random": true },
+    { "id": "small-bug", "title": "修一個小錯誤", "chars": 160, "seconds": 45, "random": true },
+    { "id": "ticket", "title": "回覆客服單", "chars": 120, "seconds": 40, "random": true },
+    { "id": "reinstall", "title": "重灌測試環境", "chars": 220, "seconds": 45, "urgent": true },
+    { "id": "login-rush", "title": "補完登入模組", "chars": 260, "seconds": 60, "urgent": true },
+    { "id": "server-run", "title": "機房跳電：去重開電源", "place": "Server", "seconds": 30, "urgent": true },
+    { "id": "db-fix", "title": "修資料庫重複寫入", "chars": 240, "seconds": 50, "urgent": true },
+    { "id": "ddos", "title": "擋下攻擊流量", "chars": 260, "seconds": 45, "urgent": true }
+  ],
+
+  "slack": [
+    { "app": "迷因板", "text": "「寫註解的唯一目的，是讓三個月後的自己知道，當初到底在想什麼。」\n\n你在心裡按了一百個讚。", "stress": -12 },
+    { "app": "迷因板", "text": "匿名版熱門：「某公司主管每天巡邏看大家螢幕，自己連 Git 都不會用。」\n\n配圖背景的盆栽⋯⋯怎麼跟你們辦公室的一模一樣？", "stress": -15, "life": 5 },
+    { "app": "迷因板", "text": "「測試工程師走進酒吧，點了 1 杯啤酒、0 杯啤酒、-1 杯啤酒、一隻蜥蜴。\n\n真正的客人走進來問廁所在哪，酒吧就燒起來了。」", "stress": -10 },
+    { "app": "購物網", "text": "限時特賣：人體工學護腰椅墊，拯救你的腰椎！\n\n你按下了「立即結帳」。", "stress": -15, "life": 10 },
+    { "app": "購物網", "text": "客製化機械鍵盤，附一顆超大 Enter 鍵，生氣時可以用拳頭捶。\n\n期待收貨中。", "stress": -12, "progress": 3 },
+    { "app": "購物網", "text": "你訂了一箱綠色乖乖放機房保平安。\n\n賣家通知：「綠色缺貨，幫您換成五香口味喔！」\n\n⋯⋯機房大忌。", "stress": 8 },
+    { "app": "看盤", "text": "聽論壇明牌買進「AI 量子區塊鏈概念股」。\n\n買完三秒，跌停。", "stress": 20 },
+    { "app": "看盤", "text": "零股買的晶圓代工龍頭，盤中宣布技術突破，帳面上賺了一個便當錢！", "stress": -25, "life": 10 },
+    { "app": "看盤", "text": "同事推薦的迷因幣，五秒內暴漲 300%，然後下市。\n\n你看破紅塵了。", "stress": -5 },
+    { "app": "人力銀行", "text": "你把修過兩個小錯誤，寫成「主導高併發微服務架構重構」。\n\n剛存檔，就收到通知：「您目前任職公司的人資已瀏覽您的履歷」。", "stress": 15, "trust": -5 },
+    { "app": "手遊", "text": "趁程式在編譯，偷抽了限定角色十連抽。\n\n七彩光芒閃過——全部保底。", "stress": 5 },
+    { "app": "刷題網", "text": "偷寫了一題 Two Sum，用兩層迴圈暴力解居然過了。\n\n你覺得自己是演算法天才。", "stress": -10, "progress": 5 }
   ]
 }
