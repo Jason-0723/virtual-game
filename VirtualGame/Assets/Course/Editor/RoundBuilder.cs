@@ -81,8 +81,8 @@ public static class RoundBuilder
         Vector3 seatPos = MyDesk + new Vector3(0, 0, -0.78f);
         CinemachineCamera deskFace = FixedCam("Desk Face Cam", seatPos + new Vector3(0.85f, 1.3f, 0.6f), seatPos + new Vector3(0, 1.22f, 0.05f), 38);
         CinemachineCamera bDeskFace = FixedCam("Boss Desk Face Cam", bossDesk + new Vector3(-0.84f, 1.42f, 0.6f), bossDesk + Vector3.up * 1.58f, 38);   // 主管說話會低頭，鏡頭放低一點才拍得到臉
-        // 玩小遊戲時的鏡頭：靠近螢幕，讓螢幕佔大半個畫面，左下角還看得到你的頭和肩膀
-        CinemachineCamera gameCam = FixedCam("Game Cam", MyDesk + new Vector3(0.32f, 1.42f, -1.08f), MyDesk + new Vector3(-0.04f, 1.12f, 0.2f), 40);
+        // 玩小遊戲時的鏡頭：從右肩上方看螢幕，螢幕佔大半個畫面；你的頭在畫面左下角邊緣，不會擋到螢幕上的按鈕
+        CinemachineCamera gameCam = FixedCam("Game Cam", MyDesk + new Vector3(0.45f, 1.62f, -1.05f), MyDesk + new Vector3(0.02f, 1.12f, 0.2f), 40);
 
         // 同事：坐在位子上邊打字邊跟你說話（鏡頭從側前方拍臉）；頭上有浮空名牌（第 10 週）
         Animator Coworker(string name, string label, out CinemachineCamera cam)

@@ -3,7 +3,7 @@ using UnityEngine.UI;
 using UnityEngine;
 
 // 分類小遊戲：卡片一張張出現，在時限內選對分類（兩種玩法共用）
-//  訊息分類：Slack 訊息 → 緊急／今天處理／不用理
+//  訊息分類：Slack 訊息 → 馬上處理／晚點再說
 //  釣魚信辨識：電子郵件 → 安全／可疑
 // 難度越高，每張卡片能想的時間越短、張數越多
 public class SortGame : MonitorGame
@@ -17,16 +17,16 @@ public class SortGame : MonitorGame
     {
         new Card { text = "客服：網站打不開了！！客人都在罵", answer = 0 },
         new Card { text = "主管：付款頁面有人被扣款兩次", answer = 0 },
-        new Card { text = "監控：伺服器硬碟用量 98%", answer = 0 },
+        new Card { text = "監控：伺服器硬碟用量 98%，快滿了", answer = 0 },
         new Card { text = "設計師：這個按鈕可以改成藍色嗎？", answer = 1 },
         new Card { text = "PM：明天站會前把進度填一下", answer = 1 },
         new Card { text = "同事：你上午說的那個錯誤，修好了嗎？", answer = 1 },
-        new Card { text = "福委：下週團建想吃燒肉還是火鍋？", answer = 2 },
-        new Card { text = "群組：（有人傳了一張貓的照片）", answer = 2 },
-        new Card { text = "業務：轉傳「震驚！工程師都在用的十個祕訣」", answer = 2 },
+        new Card { text = "福委：下週團建想吃燒肉還是火鍋？", answer = 1 },
+        new Card { text = "群組：（有人傳了一張貓的照片）", answer = 1 },
+        new Card { text = "業務：轉傳「震驚！工程師都在用的十個祕訣」", answer = 1 },
         new Card { text = "客服：結帳金額算錯，客人多付了錢", answer = 0 },
         new Card { text = "HR：記得這週五前填工時表", answer = 1 },
-        new Card { text = "同事：茶水間的咖啡機修好了 ☕", answer = 2 },
+        new Card { text = "同事：茶水間的咖啡機修好了 ☕", answer = 1 },
     };
 
     static readonly Card[] Mails =
@@ -47,7 +47,7 @@ public class SortGame : MonitorGame
     int index, correct;
     float cardUntil;
 
-    string[] Choices => phishing ? new[] { "安全", "可疑" } : new[] { "緊急", "今天處理", "不用理" };
+    string[] Choices => phishing ? new[] { "安全", "可疑" } : new[] { "馬上處理", "晚點再說" };
 
     protected override void Setup()
     {
@@ -61,12 +61,12 @@ public class SortGame : MonitorGame
         RectTransform card = Box(Color.white, new Vector2(0, 50), new Vector2(760, 170));
         cardText = Label("", 30, Ink, Vector2.zero, new Vector2(720, 160), card);
         string[] ch = Choices;
-        Color[] colors = phishing ? new[] { Green, Red } : new[] { Red, Gold, Paper };
+        Color[] colors = phishing ? new[] { Green, Red } : new[] { Red, Blue };
         for (int i = 0; i < ch.Length; i++)
         {
             int k = i;
             float x = (i - (ch.Length - 1) / 2f) * 270;
-            Btn(ch[i], colors[i], i == 2 ? Ink : Color.white, new Vector2(x, -130), new Vector2(240, 70), () => Answer(k));
+            Btn(ch[i], colors[i], Color.white, new Vector2(x, -130), new Vector2(240, 70), () => Answer(k));
         }
         Show();
     }

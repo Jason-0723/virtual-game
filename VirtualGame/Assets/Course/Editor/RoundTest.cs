@@ -45,6 +45,7 @@ public class RoundTest
                 {
                     yield return new WaitForSecondsRealtime(0.4f);
                     Snap("campaign_" + g.Title);
+                    if (snapped.Add("headcheck")) HeadDoesNotCoverMonitor();
                 }
                 if (Time.realtimeSinceStartup >= nextAuto) { g.AutoPlay(); nextAuto = Time.realtimeSinceStartup + (policy == 0 ? 0f : 0.5f); }
                 yield return null;
@@ -96,7 +97,7 @@ public class RoundTest
     public void LevelsJsonIsConsistent()
     {
         var data = JsonUtility.FromJson<CampaignDirector.Data>(Resources.Load<TextAsset>("levels").text);
-        var gamesKeys = new HashSet<string> { "bug", "diff", "load", "deploy", "triage", "phish" };
+        var gamesKeys = new HashSet<string> { "bug", "diff", "load", "deploy", "triage", "phish", "backup", "password", "plan", "bisect", "firewall", "checklist" };
         var speakers = new HashSet<string> { "boss", "lewis", "suzie", "martha" };
         int levels = 0;
         foreach (var day in data.days)
@@ -112,6 +113,25 @@ public class RoundTest
             }
         }
         Assert.AreEqual(12, levels, "應該有 12 關");
+        var used = new HashSet<string>();
+        foreach (var day in data.days) foreach (var lv in day.levels) Assert.IsTrue(used.Add(lv.game), lv.id + " 的小遊戲跟前面重複了：" + lv.game);
+    }
+
+    // 頭不能擋到螢幕：把你角色的頭（半徑約 12 公分）和螢幕四個角投影到畫面上，兩者不能重疊；螢幕也要夠大
+    static void HeadDoesNotCoverMonitor()
+    {
+        Camera cam = Camera.main;
+        Transform head = GameObject.Find("Player").GetComponent<Animator>().GetBoneTransform(HumanBodyBones.Head);
+        var corners = new Vector3[4];
+        ((RectTransform)GameObject.Find("Monitor UI").transform).GetWorldCorners(corners);
+        Vector2 min = Vector2.one * 9, max = -Vector2.one * 9;
+        foreach (Vector3 c in corners) { Vector3 v = cam.WorldToViewportPoint(c); min = Vector2.Min(min, v); max = Vector2.Max(max, v); }
+        Vector3 h = cam.WorldToViewportPoint(head.position + Vector3.up * 0.06f);
+        float r = Mathf.Abs(cam.WorldToViewportPoint(head.position + Vector3.up * 0.06f + cam.transform.right * 0.12f).x - h.x);
+        float dx = Mathf.Max(min.x - h.x, 0, h.x - max.x), dy = Mathf.Max(min.y - h.y, 0, h.y - max.y);
+        Debug.Log($"[Campaign] 螢幕在畫面上 x {min.x:F2}～{max.x:F2}、y {min.y:F2}～{max.y:F2}；頭在 ({h.x:F2}, {h.y:F2}) 半徑 {r:F2}");
+        Assert.Greater(Mathf.Sqrt(dx * dx + dy * dy), r * 0.9f, "你角色的頭擋到螢幕了");
+        Assert.Greater(max.x - min.x, 0.45f, "螢幕在畫面上太小，按鈕會看不清楚");
     }
 
     static void Snap(string name)

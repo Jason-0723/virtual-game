@@ -73,6 +73,12 @@ public class CampaignDirector : MonoBehaviour
         Add<DeployGame>("deploy");
         Add<SortGame>("triage", g => g.phishing = false);
         Add<SortGame>("phish", g => g.phishing = true);
+        Add<BackupGame>("backup");
+        Add<PasswordGame>("password");
+        Add<PlanGame>("plan");
+        Add<BisectGame>("bisect");
+        Add<FirewallGame>("firewall");
+        Add<ChecklistGame>("checklist");
     }
 
     void Start()

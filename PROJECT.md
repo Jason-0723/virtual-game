@@ -105,3 +105,8 @@
 - 場景全部由 `Editor/OfficeBuilder.cs` 產生：改完跑 `sh build-scene.sh`（或 Unity 選單 Course/4.）
 - 自動試玩：`sh run-tests.sh`，機器人用三種選法玩到結局，順便截圖到 `screenshots/`（臉部特寫、跟隨鏡頭、打字、時間軸）
 - 改劇情只要改 `Resources/events.json`；新選項記得給 `id`，`EventScheduleTest` 會檢查 id 重複和 `causedBy` 打錯
+
+## 2026-11-10 回饋修正
+- 小遊戲鏡頭改到右肩上方，角色的頭在畫面左下角，不再擋到螢幕按鈕（RoundTest 加自動檢查）
+- 1-3 訊息分類只剩兩個選項：馬上處理／晚點再說
+- 新增 6 個小遊戲：搶救備份、設定強密碼、排今天的工作、找出壞掉的版本、擋下假流量、上線前檢查；12 關各用不同的小遊戲
