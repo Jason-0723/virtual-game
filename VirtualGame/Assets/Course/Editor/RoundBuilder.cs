@@ -72,15 +72,15 @@ public static class RoundBuilder
         foreach (Transform t in Object.FindObjectsByType<Transform>(FindObjectsSortMode.None))
             if ((t.name == "Pot" || t.name == "Leaves") && Vector2.Distance(new Vector2(t.position.x, t.position.z), new Vector2(2.4f, 2.6f)) < 0.3f)
                 Object.DestroyImmediate(t.gameObject);
-        CinemachineCamera pFace = FixedCam("Player Face Cam", new Vector3(2.05f, 1.6f, 0.15f), heroTalkPos + Vector3.up * 1.58f, 35);
-        CinemachineCamera bFace = FixedCam("Boss Face Cam", new Vector3(1.35f, 1.62f, 0.15f), bossPos + Vector3.up * 1.62f, 35);
+        CinemachineCamera pFace = FixedCam("Player Face Cam", new Vector3(2.05f, 1.45f, 0.15f), heroTalkPos + Vector3.up * 1.22f, 35);
+        CinemachineCamera bFace = FixedCam("Boss Face Cam", new Vector3(1.35f, 1.62f, 0.15f), bossPos + Vector3.up * (1.62f - FaceDrop), 35);
 
         // 白天主管站在你座位旁邊（右後方），下班才到辦公區談話
         Vector3 bossDesk = MyDesk + new Vector3(1.3f, 0, -1.3f);
         Quaternion bossDeskRot = Quaternion.LookRotation(new Vector3(-1.3f, 0, 0.52f));
         Vector3 seatPos = MyDesk + new Vector3(0, 0, -0.78f);
-        CinemachineCamera deskFace = FixedCam("Desk Face Cam", seatPos + new Vector3(0.85f, 1.3f, 0.6f), seatPos + new Vector3(0, 1.22f, 0.05f), 38);
-        CinemachineCamera bDeskFace = FixedCam("Boss Desk Face Cam", bossDesk + new Vector3(-0.84f, 1.42f, 0.6f), bossDesk + Vector3.up * 1.58f, 38);   // 主管說話會低頭，鏡頭放低一點才拍得到臉
+        CinemachineCamera deskFace = FixedCam("Desk Face Cam", seatPos + new Vector3(0.85f, 1.3f, 0.6f), seatPos + new Vector3(0, 1.18f, 0.05f), 38);
+        CinemachineCamera bDeskFace = FixedCam("Boss Desk Face Cam", bossDesk + new Vector3(-0.84f, 1.42f, 0.6f), bossDesk + Vector3.up * 1.52f, 38);   // 主管說話會低頭，鏡頭放低一點才拍得到臉
         // 玩小遊戲時的鏡頭：從右肩上方看螢幕，螢幕佔大半個畫面；你的頭在畫面左下角邊緣，不會擋到螢幕上的按鈕
         CinemachineCamera gameCam = FixedCam("Game Cam", MyDesk + new Vector3(0.45f, 1.62f, -1.05f), MyDesk + new Vector3(0.02f, 1.12f, 0.2f), 40);
 
@@ -89,7 +89,7 @@ public static class RoundBuilder
         {
             GameObject c = GameObject.Find(name);
             Vector3 p = c.transform.position;
-            cam = FixedCam(label + " Face Cam", p + new Vector3(0.85f, 1.3f, 0.55f), p + new Vector3(0, 1.22f, 0.05f), 38);
+            cam = FixedCam(label + " Face Cam", p + new Vector3(0.85f, 1.3f, 0.55f), p + new Vector3(0, 1.22f - FaceDrop, 0.05f), 38);
             NameTag(c.transform, label, 1.75f);
             return c.GetComponent<Animator>();
         }
@@ -155,6 +155,9 @@ public static class RoundBuilder
         sm.defaultState = sm.states[0].state;
         return ctrl;
     }
+
+    // 臉部特寫的瞄準點往下移一點：臉會落在畫面上半部，下面的字幕列就不會擋到臉
+    const float FaceDrop = 0.14f;
 
     static CinemachineCamera FixedCam(string name, Vector3 pos, Vector3 lookAt, float fov)
     {

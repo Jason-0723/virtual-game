@@ -28,9 +28,13 @@ public class RoundTest
 
         CampaignDirector d = Object.FindFirstObjectByType<CampaignDirector>();
         Assert.IsNotNull(d);
+        foreach (SkinnedMeshRenderer smr in Object.FindObjectsByType<SkinnedMeshRenderer>(FindObjectsSortMode.None)) smr.updateWhenOffscreen = true;
         Time.timeScale = 4;   // 加速，不影響規則
         var rng = new System.Random(policy + 7);
         var snapped = new HashSet<string>();
+        faceChecks = 0;
+        faceProblems.Clear();
+        lastFaceFail = null;
         float until = Time.realtimeSinceStartup + 600f;
         int games = 0, picks = 0;
         float nextAuto = 0;
@@ -55,6 +59,7 @@ public class RoundTest
             {
                 yield return new WaitForSecondsRealtime(0.3f);
                 if (policy == 0 && snapped.Add("choice")) Snap("campaign_choice");
+                FaceAboveSubtitle(d);
                 d.Pick(rng.Next(d.ChoiceCount));
                 picks++;
             }
@@ -63,6 +68,7 @@ public class RoundTest
                 yield return new WaitForSecondsRealtime(0.25f);
                 if (policy == 0 && d.Now == CampaignDirector.Phase.Map && snapped.Add("map")) Snap("campaign_map");
                 if (policy == 0 && d.Now == CampaignDirector.Phase.Talk && snapped.Add("talk")) { yield return new WaitForSecondsRealtime(0.5f); Snap("campaign_talk"); }
+                if (d.Now == CampaignDirector.Phase.Talk) { yield return new WaitForSecondsRealtime(0.3f); FaceAboveSubtitle(d); }
                 if (d.Now == CampaignDirector.Phase.Game) games++;
                 d.Continue();
             }
@@ -70,9 +76,11 @@ public class RoundTest
         }
         yield return new WaitForSecondsRealtime(0.5f);
         Snap("campaign_ending" + policy);
-        Debug.Log($"[Campaign] policy {policy}：★ {d.TotalStars} / 36、主管信任 {d.Trust}、選了 {picks} 次 → {d.Ending}");
-        Assert.GreaterOrEqual(picks, 12 + 5, "每關前和每天下班都要有選擇");
-        if (policy == 0) Assert.GreaterOrEqual(d.TotalStars, 24, "玩得好卻拿不到星星，難度可能太高");
+        Debug.Log($"[Campaign] policy {policy}：★ {d.TotalStars} / {d.MaxStars}、主管信任 {d.Trust}、選了 {picks} 次 → {d.Ending}");
+        Assert.GreaterOrEqual(picks, 15 + 5, "每關前和每天下班都要有選擇");
+        Assert.IsEmpty(faceProblems, "臉被字幕列擋住或超出畫面：\n" + string.Join("\n", faceProblems));
+        Assert.Greater(faceChecks, 20, "臉和字幕列的檢查應該做很多次");
+        if (policy == 0) Assert.GreaterOrEqual(d.TotalStars, d.MaxStars * 2 / 3, "玩得好卻拿不到星星，難度可能太高");
         StringAssert.StartsWith("結局", d.Ending);
         yield return new ExitPlayMode();
     }
@@ -97,7 +105,7 @@ public class RoundTest
     public void LevelsJsonIsConsistent()
     {
         var data = JsonUtility.FromJson<CampaignDirector.Data>(Resources.Load<TextAsset>("levels").text);
-        var gamesKeys = new HashSet<string> { "bug", "diff", "load", "deploy", "triage", "phish", "backup", "password", "plan", "bisect", "firewall", "checklist" };
+        var gamesKeys = new HashSet<string> { "bug", "diff", "load", "deploy", "triage", "phish", "backup", "password", "plan", "bisect", "firewall", "checklist", "jargon", "restart", "route" };
         var speakers = new HashSet<string> { "boss", "lewis", "suzie", "martha" };
         int levels = 0;
         foreach (var day in data.days)
@@ -112,22 +120,60 @@ public class RoundTest
                 Assert.Greater(lv.seconds, 0, lv.id + " 沒有時間");
             }
         }
-        Assert.AreEqual(12, levels, "應該有 12 關");
+        Assert.AreEqual(15, levels, "應該有 15 關");
+        // 越後面越難：難度不能往下掉
+        int last = -1;
+        foreach (var day in data.days) foreach (var lv in day.levels) { Assert.GreaterOrEqual(lv.diff, last, lv.id + " 比前一關簡單"); last = lv.diff; }
         var used = new HashSet<string>();
         foreach (var day in data.days) foreach (var lv in day.levels) Assert.IsTrue(used.Add(lv.game), lv.id + " 的小遊戲跟前面重複了：" + lv.game);
+    }
+
+    // 對話時，正在講話的人的臉（下巴到頭頂）要整個在字幕列上面、畫面裡面
+    static int faceChecks;
+    static readonly List<string> faceProblems = new List<string>();
+    static string lastFaceFail;
+    static void FaceAboveSubtitle(CampaignDirector d)
+    {
+        if (d.Focus == null || d.SubtitleTop <= 0) return;
+        Camera cam = Camera.main;
+        Vector3 head = HeadTop(d.Focus.GetComponentInParent<Animator>());
+        float chin = cam.WorldToViewportPoint(head - Vector3.up * 0.25f).y;
+        float top = cam.WorldToViewportPoint(head).y;
+        var brain = cam.GetComponent<Unity.Cinemachine.CinemachineBrain>();
+        string where = $"頭頂 {head} 鏡頭 {brain.ActiveVirtualCamera?.Name}{(brain.IsBlending ? "（轉場中）" : "")} 在 {cam.transform.position}";
+        faceChecks++;
+        // 角色剛被搬位置的那一格，網格外框還沒更新會誤報；同一台鏡頭連續兩次有問題才算數
+        string key = brain.ActiveVirtualCamera?.Name;
+        if (chin > d.SubtitleTop + 0.02f && top < 1.0f) { lastFaceFail = null; return; }
+        if (lastFaceFail != key) { lastFaceFail = key; return; }
+        faceProblems.Add($"{d.Focus.root.name}：下巴 {chin:F2}、頭頂 {top:F2}、字幕列頂 {d.SubtitleTop:F2}，{where}");
+        if (faceProblems.Count <= 4) Snap("fail_face" + faceProblems.Count);
+    }
+
+    // 頭頂的世界座標：角色網格「現在這個姿勢」的外框最高點
+    // （你的掃描模型「頭骨」的位置和看到的頭對不起來，所以直接看網格外框；要先開 updateWhenOffscreen 外框才會跟著動作更新）
+    static Vector3 HeadTop(Animator a)
+    {
+        Vector3 best = a.transform.position;
+        foreach (SkinnedMeshRenderer smr in a.GetComponentsInChildren<SkinnedMeshRenderer>())
+        {
+            Bounds b = smr.bounds;
+            if (b.max.y > best.y) best = new Vector3(b.center.x, b.max.y, b.center.z);
+        }
+        return best;
     }
 
     // 頭不能擋到螢幕：把你角色的頭（半徑約 12 公分）和螢幕四個角投影到畫面上，兩者不能重疊；螢幕也要夠大
     static void HeadDoesNotCoverMonitor()
     {
         Camera cam = Camera.main;
-        Transform head = GameObject.Find("Player").GetComponent<Animator>().GetBoneTransform(HumanBodyBones.Head);
+        Vector3 headTop = HeadTop(GameObject.Find("Player").GetComponent<Animator>());
         var corners = new Vector3[4];
         ((RectTransform)GameObject.Find("Monitor UI").transform).GetWorldCorners(corners);
         Vector2 min = Vector2.one * 9, max = -Vector2.one * 9;
         foreach (Vector3 c in corners) { Vector3 v = cam.WorldToViewportPoint(c); min = Vector2.Min(min, v); max = Vector2.Max(max, v); }
-        Vector3 h = cam.WorldToViewportPoint(head.position + Vector3.up * 0.06f);
-        float r = Mathf.Abs(cam.WorldToViewportPoint(head.position + Vector3.up * 0.06f + cam.transform.right * 0.12f).x - h.x);
+        Vector3 h = cam.WorldToViewportPoint(headTop - Vector3.up * 0.12f);
+        float r = Mathf.Abs(cam.WorldToViewportPoint(headTop - Vector3.up * 0.12f + cam.transform.right * 0.12f).x - h.x);
         float dx = Mathf.Max(min.x - h.x, 0, h.x - max.x), dy = Mathf.Max(min.y - h.y, 0, h.y - max.y);
         Debug.Log($"[Campaign] 螢幕在畫面上 x {min.x:F2}～{max.x:F2}、y {min.y:F2}～{max.y:F2}；頭在 ({h.x:F2}, {h.y:F2}) 半徑 {r:F2}");
         Assert.Greater(Mathf.Sqrt(dx * dx + dy * dy), r * 0.9f, "你角色的頭擋到螢幕了");

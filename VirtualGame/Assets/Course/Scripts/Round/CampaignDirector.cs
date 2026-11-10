@@ -8,7 +8,7 @@ using UnityEngine.Rendering.Universal;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 
-// 闖關版的導演：三天 × 4 關，內容在 Resources/levels.json
+// 闖關版的導演：三天 × 5 關，內容在 Resources/levels.json
 // 每一關：有人來找你（臉部特寫＋選擇）→ 你在座位的電腦上玩小遊戲（鏡頭在肩膀後面）→ 結果卡
 // 每天下班：起身走到主管旁邊談話（兩人中景／臉部特寫，主管會點頭、搖頭、生氣）
 // 選項每次都打亂順序；偷懶、說謊會累積「技術債」，讓後面的關卡變難
@@ -39,6 +39,9 @@ public class CampaignDirector : MonoBehaviour
     public int TotalStars { get { int s = 0; foreach (int v in stars.Values) s += v; return s; } }
     public List<string> LastChoices { get; } = new List<string>();   // 給測試：上一次選項畫面的順序
     public string Ending { get; private set; }
+    public Transform Focus => dofTarget;   // 給測試：現在特寫的是誰的頭
+    public float SubtitleTop => bar.activeSelf ? (BarY + BarH) / 1080f : 0;   // 給測試：字幕列頂端在畫面多高（0～1）
+    public int MaxStars { get { int n = 0; foreach (Day d in data.days) n += d.levels.Length * 3; return n; } }
 
     Data data;
     readonly Dictionary<string, int> stars = new Dictionary<string, int>();
@@ -79,6 +82,9 @@ public class CampaignDirector : MonoBehaviour
         Add<BisectGame>("bisect");
         Add<FirewallGame>("firewall");
         Add<ChecklistGame>("checklist");
+        Add<JargonGame>("jargon");
+        Add<RestartGame>("restart");
+        Add<RouteGame>("route");
     }
 
     void Start()
@@ -140,7 +146,7 @@ public class CampaignDirector : MonoBehaviour
         Now = Phase.Map;
         Cut(deskCam, null);
         GameObject map = Ui.Rect("Map", ui.transform, new Color(0.07f, 0.07f, 0.09f, 0.88f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(1300, 760)).gameObject;
-        Ui.Label(map.transform, $"關卡地圖　　★ {TotalStars} / {12 * 3}　　主管信任 {trust}　　技術債 {debt}", 30, Gold, new Vector2(0.5f, 1), new Vector2(0, -30), new Vector2(1200, 50), DayManager.UiFont, TextAnchor.UpperCenter);
+        Ui.Label(map.transform, $"關卡地圖　　★ {TotalStars} / {MaxStars}　　主管信任 {trust}　　技術債 {debt}", 30, Gold, new Vector2(0.5f, 1), new Vector2(0, -30), new Vector2(1200, 50), DayManager.UiFont, TextAnchor.UpperCenter);
         for (int d = 0; d < data.days.Length; d++)
         {
             Ui.Label(map.transform, data.days[d].name, 26, Color.white, new Vector2(0, 1), new Vector2(40, -120 - d * 190), new Vector2(300, 40), DayManager.UiFont, TextAnchor.UpperLeft);
@@ -149,9 +155,10 @@ public class CampaignDirector : MonoBehaviour
                 Level lv = data.days[d].levels[i];
                 bool done = stars.ContainsKey(lv.id), current = lv == next;
                 Color bg = current ? Gold : done ? new Color(1, 1, 1, 0.18f) : new Color(1, 1, 1, 0.06f);
-                RectTransform node = Ui.Rect("Node", map.transform, bg, new Vector2(0, 1), new Vector2(40 + i * 310, -165 - d * 190), new Vector2(290, 120));
+                RectTransform node = Ui.Rect("Node", map.transform, bg, new Vector2(0, 1), new Vector2(40 + i * 248, -165 - d * 190), new Vector2(236, 130));
                 string st = done ? new string('★', stars[lv.id]) + new string('☆', 3 - stars[lv.id]) : current ? "▶ 下一關" : "（未解鎖）";
-                Ui.Label(node, $"{lv.id}　{lv.name}\n{st}", 24, current ? Ink : Color.white, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(270, 110), DayManager.UiFont, TextAnchor.MiddleCenter);
+                string hard = "難度 " + new string('▮', lv.diff + 1) + new string('▯', 5 - lv.diff);   // 越後面越難
+                Ui.Label(node, $"{lv.id}　{lv.name}\n{hard}\n{st}", 22, current ? Ink : Color.white, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(226, 124), DayManager.UiFont, TextAnchor.MiddleCenter);
                 if (current) node.gameObject.AddComponent<Button>().onClick.AddListener(() => WaitingContinue = false);
             }
         }
@@ -230,8 +237,8 @@ public class CampaignDirector : MonoBehaviour
         yield return Fade(0);
 
         Now = Phase.Talk;
-        if (dayStars >= 10) yield return Says("boss", $"今天拿了 {dayStars} 顆星，做得很好。", "Nod");
-        else if (dayStars >= 6) yield return Says("boss", $"今天 {dayStars} 顆星。還可以，但還有進步的空間。", "Talk");
+        if (dayStars >= day.levels.Length * 2.5f) yield return Says("boss", $"今天拿了 {dayStars} 顆星，做得很好。", "Nod");
+        else if (dayStars >= day.levels.Length * 1.5f) yield return Says("boss", $"今天 {dayStars} 顆星。還可以，但還有進步的空間。", "Talk");
         else yield return Says("boss", $"今天只有 {dayStars} 顆星。我們得好好談談。", "Angry");
 
         foreach (Talk t in day.endTalk)
@@ -255,12 +262,12 @@ public class CampaignDirector : MonoBehaviour
         int s = TotalStars;
         string title, body;
         if (flags.Contains("scapegoat")) { title = "結局：通過試用期，但⋯⋯"; body = "你通過了試用期，報告上那個漏洞，掛的是你的名字。\n主管對你很好。你常常想起簽名那天，手有點抖。"; }
-        else if (trust >= 70 && s >= 26) { title = "結局：轉正加薪"; body = "三天撐過來了，表現和信任都很漂亮。人資寄來轉正通知，還附了一點加薪。"; }
+        else if (trust >= 70 && s >= MaxStars * 0.72f) { title = "結局：轉正加薪"; body = "三天撐過來了，表現和信任都很漂亮。人資寄來轉正通知，還附了一點加薪。"; }
         else if (flags.Contains("whistle") || flags.Contains("together")) { title = "結局：準時下班的人"; body = "你沒有替任何人背鍋，也沒有藏任何錯誤。\n週五 18:00，你準時走出大門，雨剛好停了。"; }
         else if (trust >= 45) { title = "結局：撐過第一週"; body = "不算完美，但你撐過來了。下週一，還有新的關卡在等你。"; }
         else { title = "結局：試用期沒過"; body = "主管說：「你很努力，但我們需要更能溝通的人。」\n工程師不只寫程式，也要誠實、會求助、會說不。"; }
         Ending = title;
-        body = $"★ {s} / 36　　主管信任 {trust}　　技術債 {debt}\n\n{body}\n\n你不是一個人，辛苦了。累了，請找人說說話：衛福部安心專線 1925";
+        body = $"★ {s} / {MaxStars}　　主管信任 {trust}　　技術債 {debt}\n\n{body}\n\n你不是一個人，辛苦了。累了，請找人說說話：衛福部安心專線 1925";
         StartCoroutine(Card(title, body, "再玩一次", () => SceneManager.LoadScene(SceneManager.GetActiveScene().name)));
     }
 
@@ -346,6 +353,8 @@ public class CampaignDirector : MonoBehaviour
     // ───── UI（執行時才畫）─────
     static readonly Color Gold = new Color32(0xf2, 0xb3, 0x3d, 255), Ink = new Color32(0x15, 0x17, 0x1c, 255);
 
+    const float BarY = 12, BarH = 262;
+
     void BuildUi()
     {
         ui = new GameObject("Campaign UI", typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster));
@@ -360,11 +369,11 @@ public class CampaignDirector : MonoBehaviour
         hud = Ui.Label(ui.transform, "", 30, Gold, new Vector2(0.5f, 1), new Vector2(0, -24), new Vector2(1000, 50), f, TextAnchor.UpperCenter);
         hud.gameObject.SetActive(false);
 
-        // 字幕列：畫面下方，臉留在上面
-        bar = Ui.Rect("Subtitle", ui.transform, new Color(0.07f, 0.07f, 0.09f, 0.88f), new Vector2(0.5f, 0), new Vector2(0, 30), new Vector2(1500, 340)).gameObject;
-        whoText = Ui.Label(bar.transform, "", 30, Gold, new Vector2(0, 1), new Vector2(40, -20), new Vector2(600, 44), f, TextAnchor.UpperLeft);
-        lineText = Ui.Label(bar.transform, "", 32, Color.white, new Vector2(0, 1), new Vector2(40, -70), new Vector2(1420, 90), f, TextAnchor.UpperLeft);
-        optionBox = Ui.Rect("Options", bar.transform, new Color(0, 0, 0, 0), new Vector2(0, 0), new Vector2(40, 20), new Vector2(1420, 130));
+        // 字幕列：貼著畫面最下面、壓扁一點，臉留在畫面上半部（臉部鏡頭也配合把臉放高）
+        bar = Ui.Rect("Subtitle", ui.transform, new Color(0.07f, 0.07f, 0.09f, 0.85f), new Vector2(0.5f, 0), new Vector2(0, BarY), new Vector2(1600, BarH)).gameObject;
+        whoText = Ui.Label(bar.transform, "", 28, Gold, new Vector2(0, 1), new Vector2(40, -12), new Vector2(600, 40), f, TextAnchor.UpperLeft);
+        lineText = Ui.Label(bar.transform, "", 30, Color.white, new Vector2(0, 1), new Vector2(40, -52), new Vector2(1520, 76), f, TextAnchor.UpperLeft);
+        optionBox = Ui.Rect("Options", bar.transform, new Color(0, 0, 0, 0), new Vector2(0, 0), new Vector2(40, 12), new Vector2(1520, 124));
         bar.SetActive(false);
 
         fade = Ui.Rect("Fade", ui.transform, new Color(0, 0, 0, 0), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(4000, 3000)).gameObject;
@@ -383,8 +392,8 @@ public class CampaignDirector : MonoBehaviour
     void AddOption(string text, Action onClick)
     {
         int i = options++;
-        RectTransform r = Ui.Rect("Option", optionBox, new Color(1, 1, 1, 0.1f), new Vector2(0, 1), new Vector2(0, -i * 44), new Vector2(1420, 40));
-        Ui.Label(r, (text.StartsWith("▶") ? "" : $"{i + 1}. ") + text, 26, Color.white, new Vector2(0, 0.5f), new Vector2(16, 0), new Vector2(1380, 40), DayManager.UiFont, TextAnchor.MiddleLeft);
+        RectTransform r = Ui.Rect("Option", optionBox, new Color(1, 1, 1, 0.1f), new Vector2(0, 1), new Vector2(0, -i * 42), new Vector2(1520, 38));
+        Ui.Label(r, (text.StartsWith("▶") ? "" : $"{i + 1}. ") + text, 26, Color.white, new Vector2(0, 0.5f), new Vector2(16, 0), new Vector2(1480, 38), DayManager.UiFont, TextAnchor.MiddleLeft);
         Button b = r.gameObject.AddComponent<Button>();
         ColorBlock cb = b.colors; cb.highlightedColor = new Color(1f, 0.8f, 0.4f); b.colors = cb;
         b.onClick.AddListener(() => onClick());
