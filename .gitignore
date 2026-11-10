@@ -44,3 +44,7 @@ test.log
 build.log
 screenshots/
 scratch_results.txt
+
+# 不公開：上課投影片、本人照片（2026-11-10 從歷史紀錄移除）
+*.pptx
+IMG_4683.jpg
