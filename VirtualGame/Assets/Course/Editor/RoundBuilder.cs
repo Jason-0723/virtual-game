@@ -63,7 +63,7 @@ public static class RoundBuilder
             if (r.name == "Monitor") { r.transform.position = screenCenter + new Vector3(0, 0, 0.02f); r.transform.localScale = new Vector3(1.0f, 0.6f, 0.03f); }
             if (r.name == "Screen") { r.transform.position = screenCenter; r.transform.localScale = new Vector3(0.94f, 0.54f, 0.01f); }
         }
-        MonitorBugHunt hunt = MonitorCanvas(screenCenter - new Vector3(0, 0, 0.008f));
+        (RectTransform area, Text status) = MonitorCanvas(screenCenter - new Vector3(0, 0, 0.008f));
 
         // ── 鏡頭：肩膀後面、兩人中景、你的臉、主管的臉（都是固定位置） ──
         CinemachineCamera desk = FixedCam("Desk Cam", new Vector3(-6.6f, 1.55f, -4.65f), MyDesk + new Vector3(0, 1.0f, 0.15f), 50);
@@ -75,15 +75,48 @@ public static class RoundBuilder
         CinemachineCamera pFace = FixedCam("Player Face Cam", new Vector3(2.05f, 1.6f, 0.15f), heroTalkPos + Vector3.up * 1.58f, 35);
         CinemachineCamera bFace = FixedCam("Boss Face Cam", new Vector3(1.35f, 1.62f, 0.15f), bossPos + Vector3.up * 1.62f, 35);
 
+        // 白天主管站在你座位旁邊（右後方），下班才到辦公區談話
+        Vector3 bossDesk = MyDesk + new Vector3(1.3f, 0, -1.3f);
+        Quaternion bossDeskRot = Quaternion.LookRotation(new Vector3(-1.3f, 0, 0.52f));
+        Vector3 seatPos = MyDesk + new Vector3(0, 0, -0.78f);
+        CinemachineCamera deskFace = FixedCam("Desk Face Cam", seatPos + new Vector3(0.85f, 1.3f, 0.6f), seatPos + new Vector3(0, 1.22f, 0.05f), 38);
+        CinemachineCamera bDeskFace = FixedCam("Boss Desk Face Cam", bossDesk + new Vector3(-0.84f, 1.42f, 0.6f), bossDesk + Vector3.up * 1.58f, 38);   // 主管說話會低頭，鏡頭放低一點才拍得到臉
+        // 玩小遊戲時的鏡頭：靠近螢幕，讓螢幕佔大半個畫面，左下角還看得到你的頭和肩膀
+        CinemachineCamera gameCam = FixedCam("Game Cam", MyDesk + new Vector3(0.32f, 1.42f, -1.08f), MyDesk + new Vector3(-0.04f, 1.12f, 0.2f), 40);
+
+        // 同事：坐在位子上邊打字邊跟你說話（鏡頭從側前方拍臉）；頭上有浮空名牌（第 10 週）
+        Animator Coworker(string name, string label, out CinemachineCamera cam)
+        {
+            GameObject c = GameObject.Find(name);
+            Vector3 p = c.transform.position;
+            cam = FixedCam(label + " Face Cam", p + new Vector3(0.85f, 1.3f, 0.55f), p + new Vector3(0, 1.22f, 0.05f), 38);
+            NameTag(c.transform, label, 1.75f);
+            return c.GetComponent<Animator>();
+        }
+        Animator lewis = Coworker("Coworker_Lewis", "學長 阿傑", out CinemachineCamera lewisCam);
+        Animator suzie = Coworker("Coworker_Suzie", "設計師 小美", out CinemachineCamera suzieCam);
+        Animator martha = Coworker("Coworker_Martha", "PM 瑪莎", out CinemachineCamera marthaCam);
+        NameTag(boss.transform, "主管 Joe", 2.15f);
+
         // ── 導演 ──
-        var director = new GameObject("Round Director").AddComponent<RoundDirector>();
+        var director = new GameObject("Campaign Director").AddComponent<CampaignDirector>();
         director.player = heroAnim;
         director.boss = bossAnim;
+        director.lewis = lewis; director.suzie = suzie; director.martha = martha;
+        director.seat = new GameObject("Seat (Player)").transform;
+        director.seat.SetPositionAndRotation(seatPos, Quaternion.identity);
+        director.bossDeskSpot = new GameObject("Boss Desk Spot").transform;
+        director.bossDeskSpot.SetPositionAndRotation(bossDesk, bossDeskRot);
         director.talkSpotPlayer = new GameObject("Talk Spot (Player)").transform;
         director.talkSpotPlayer.SetPositionAndRotation(heroTalkPos, Quaternion.Euler(0, 90, 0));
-        director.talkSpotBoss = boss.transform;
-        director.deskCam = desk; director.twoShot = two; director.playerFace = pFace; director.bossFace = bFace;
-        director.hunt = hunt;
+        director.talkSpotBoss = new GameObject("Talk Spot (Boss)").transform;
+        director.talkSpotBoss.SetPositionAndRotation(bossPos, Quaternion.Euler(0, -90, 0));
+        director.gameCam = gameCam;
+        director.deskCam = desk; director.deskFace = deskFace; director.bossDeskFace = bDeskFace;
+        director.twoShot = two; director.playerFace = pFace; director.bossFace = bFace;
+        director.lewisFace = lewisCam; director.suzieFace = suzieCam; director.marthaFace = marthaCam;
+        director.monitorArea = area;
+        director.monitorStatus = status;
 
         var scene = EditorSceneManager.GetActiveScene();
         EditorSceneManager.SaveScene(scene, RoundPath);
@@ -136,7 +169,7 @@ public static class RoundBuilder
     }
 
     // 螢幕上的 App 畫面：World Space Canvas，0.94 × 0.54 公尺
-    static MonitorBugHunt MonitorCanvas(Vector3 center)
+    static (RectTransform, Text) MonitorCanvas(Vector3 center)
     {
         Font font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
         var g = new GameObject("Monitor UI", typeof(Canvas), typeof(GraphicRaycaster));
@@ -153,12 +186,6 @@ public static class RoundBuilder
         header.color = new Color32(0xef, 0x6c, 0x33, 255);
         Text title = Child<Text>("Title", header.rectTransform, new Vector2(900, 60), Vector2.zero);
         title.font = font; title.fontSize = 34; title.color = Color.white; title.alignment = TextAnchor.MiddleLeft; title.text = "  飯飯外送　測試版";
-        for (int i = 0; i < 5; i++)
-        {
-            Image row = Child<Image>("Row", rt, new Vector2(860, 60), new Vector2(0, 150 - i * 76));
-            row.color = new Color32(0xf0, 0xed, 0xe6, 255);
-            row.raycastTarget = false;
-        }
         Text status = Child<Text>("Status", rt, new Vector2(900, 40), new Vector2(0, -250));
         status.font = font; status.fontSize = 26; status.color = new Color32(0x23, 0x21, 0x1d, 255); status.alignment = TextAnchor.MiddleCenter;
         RectTransform area = new GameObject("Bug Area", typeof(RectTransform)).GetComponent<RectTransform>();
@@ -166,10 +193,24 @@ public static class RoundBuilder
         area.sizeDelta = new Vector2(900, 400);
         area.anchoredPosition = new Vector2(0, -10);
 
-        MonitorBugHunt hunt = g.AddComponent<MonitorBugHunt>();
-        hunt.area = area;
-        hunt.status = status;
-        return hunt;
+        return (area, status);
+    }
+
+    // 浮空名牌（第 10 週）：World Space Canvas，寬 300 高 80，縮放 0.005，掛 Billboard 永遠面向鏡頭
+    static void NameTag(Transform owner, string text, float height)
+    {
+        var g = new GameObject("Name Tag", typeof(Canvas), typeof(Billboard));
+        g.GetComponent<Canvas>().renderMode = RenderMode.WorldSpace;
+        var rt = (RectTransform)g.transform;
+        rt.SetParent(owner, false);
+        rt.sizeDelta = new Vector2(300, 80);
+        rt.localPosition = Vector3.up * height;
+        rt.localScale = Vector3.one * 0.005f / Mathf.Max(0.0001f, owner.lossyScale.x);
+        Image bg = Child<Image>("Background", rt, new Vector2(300, 80), Vector2.zero);
+        bg.color = new Color(0.07f, 0.07f, 0.09f, 0.75f);
+        Text t = Child<Text>("Text", rt, new Vector2(290, 70), Vector2.zero);
+        t.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+        t.fontSize = 40; t.alignment = TextAnchor.MiddleCenter; t.color = Color.white; t.text = text;
     }
 
     static T Child<T>(string name, RectTransform parent, Vector2 size, Vector2 pos) where T : Component

@@ -1,50 +1,33 @@
-using System;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 
-// 座位電腦螢幕上的小遊戲：App 畫面上有蟲在爬，用滑鼠點掉牠們
-// 畫在一塊貼在螢幕上的 World Space Canvas，所以鏡頭從角色肩膀後面看過去，看得到角色的手和螢幕
-public class MonitorBugHunt : MonoBehaviour
+// 抓蟲：App 畫面上有蟲在爬，用滑鼠點掉。難度越高，要抓的越多、跑越快
+public class BugGame : MonitorGame
 {
-    public RectTransform area;     // 蟲可以爬的範圍（螢幕上的 App 畫面）
-    public Text status;
+    public override string Title => "抓蟲大作戰";
 
     readonly List<RectTransform> bugs = new List<RectTransform>();
     readonly Dictionary<RectTransform, Vector2> targets = new Dictionary<RectTransform, Vector2>();
-    Sprite bugSprite;
+    static Sprite sprite;
     int need, caught;
-    float until, speed;
-    bool running;
-    Action<int, int> onDone;
+    float speed;
 
-    public bool Running => running;
-    public int Caught => caught;
-
-    void Start()
+    protected override void Setup()
     {
-        GetComponent<Canvas>().worldCamera = Camera.main;   // 滑鼠點世界空間的 UI 要知道是哪台相機
-        status.text = "";
-    }
-
-    // need：要抓幾隻；seconds：時限；speed：蟲跑多快（技術債越高越快）
-    public void Begin(int need, float seconds, float speed, Action<int, int> done)
-    {
-        this.need = need;
-        this.speed = speed;
+        bugs.Clear(); targets.Clear();
+        need = 8 + difficulty * 2;
+        speed = 150 + difficulty * 45;
         caught = 0;
-        until = Time.time + seconds;
-        onDone = done;
-        running = true;
-        if (bugSprite == null) bugSprite = MakeBugSprite();
+        if (!sprite) sprite = MakeBugSprite();
+        for (int i = 0; i < 5; i++) Box(Paper, new Vector2(0, 150 - i * 76), new Vector2(860, 60)).GetComponent<Image>().raycastTarget = false;
         for (int i = 0; i < 4; i++) Spawn();
     }
 
-    void Update()
+    protected override string Goal() => $"點掉螢幕上的蟲：{caught} / {need}";
+
+    protected override void Tick()
     {
-        if (!running) return;
-        float left = until - Time.time;
-        status.text = $"抓到 {caught} / {need}　　剩 {Mathf.CeilToInt(Mathf.Max(0, left))} 秒";
         foreach (RectTransform b in bugs)
         {
             Vector2 t = targets[b];
@@ -53,14 +36,15 @@ public class MonitorBugHunt : MonoBehaviour
             if (d.sqrMagnitude > 1) b.localRotation = Quaternion.Euler(0, 0, Mathf.Atan2(d.y, d.x) * Mathf.Rad2Deg - 90);
             else targets[b] = RandomPoint();
         }
-        if (left <= 0) Finish();
     }
 
-    // 給自動試玩：直接點掉一隻
-    public void SquashOne()
+    protected override void TimeUp()
     {
-        if (running && bugs.Count > 0) Squash(bugs[0]);
+        float r = (float)caught / need;
+        Finish(r >= 1 ? 3 : r >= 0.7f ? 2 : r >= 0.4f ? 1 : 0, $"抓到 {caught} / {need} 隻蟲");
     }
+
+    public override void AutoPlay() { if (bugs.Count > 0) Squash(bugs[0]); }
 
     void Spawn()
     {
@@ -69,7 +53,7 @@ public class MonitorBugHunt : MonoBehaviour
         rt.SetParent(area, false);
         rt.sizeDelta = new Vector2(64, 64);
         rt.anchoredPosition = RandomPoint();
-        g.GetComponent<Image>().sprite = bugSprite;
+        g.GetComponent<Image>().sprite = sprite;
         g.GetComponent<Button>().onClick.AddListener(() => Squash(rt));
         bugs.Add(rt);
         targets[rt] = RandomPoint();
@@ -77,32 +61,17 @@ public class MonitorBugHunt : MonoBehaviour
 
     void Squash(RectTransform b)
     {
-        bugs.Remove(b);
-        targets.Remove(b);
+        if (!Running) return;
+        bugs.Remove(b); targets.Remove(b);
         Destroy(b.gameObject);
         caught++;
-        if (caught >= need) Finish();
-        else Spawn();
+        if (caught >= need) { Finish(Left > 8 ? 3 : 2, $"全部抓完了！（{caught} 隻）"); return; }
+        Spawn();
     }
 
-    void Finish()
-    {
-        if (!running) return;
-        running = false;
-        foreach (RectTransform b in bugs) Destroy(b.gameObject);
-        bugs.Clear();
-        targets.Clear();
-        status.text = caught >= need ? $"全部抓完了！（{caught} 隻）" : $"時間到：抓到 {caught} / {need}";
-        onDone?.Invoke(caught, need);
-    }
+    Vector2 RandomPoint() => new Vector2(Random.Range(-410f, 410f), Random.Range(-170f, 170f));
 
-    Vector2 RandomPoint()
-    {
-        Vector2 s = area.rect.size * 0.5f - new Vector2(40, 40);
-        return new Vector2(UnityEngine.Random.Range(-s.x, s.x), UnityEngine.Random.Range(-s.y, s.y));
-    }
-
-    // 用程式畫一隻蟲：深紅色身體＋六隻腳＋兩根觸角（不用另外找圖）
+    // 用程式畫一隻蟲：深紅身體＋六隻腳＋觸角
     static Sprite MakeBugSprite()
     {
         const int n = 64;
