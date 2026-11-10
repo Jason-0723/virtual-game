@@ -1,9 +1,11 @@
 using System.Linq;
 using Unity.Cinemachine;
+using Unity.AI.Navigation;
 using Unity.Cinemachine.TargetTracking;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
+using UnityEngine.AI;
 using UnityEngine.EventSystems;
 using UnityEngine.InputSystem.UI;
 using UnityEngine.Rendering;
@@ -163,6 +165,7 @@ public static class OfficeBuilder
         rim.shadows = LightShadows.None;
         rim.gameObject.SetActive(false);
         director.rimLight = rim;
+        People(hero, day, sun);
         EditorSceneManager.SaveScene(scene, ScenePath);
         EditorBuildSettings.scenes = new[] { new EditorBuildSettingsScene(ScenePath, true) };
         Debug.Log("[Course] 辦公室場景完成：" + ScenePath + "，按 ▶ 開始上班");
@@ -265,6 +268,215 @@ public static class OfficeBuilder
             AssetDatabase.ImportAsset(path);
         }
         return AssetDatabase.LoadAssetAtPath<Texture2D>(path);
+    }
+
+    // ───────────── 人：同事、主管、環境音、日光與壓力畫面 ─────────────
+    static void People(GameObject hero, DayManager day, Light sun)
+    {
+        // 聲音從角色的位置聽（JohnLemon：Audio Listener 從相機移到玩家身上），主管越近皮鞋聲越大
+        Object.DestroyImmediate(Camera.main.GetComponent<AudioListener>());
+        hero.AddComponent<AudioListener>();
+        hero.AddComponent<NavMeshModifier>().ignoreFromBuild = true;
+
+        // 同事：坐在其他座位打字（Mixamo 的 Typing 動畫）；座位旁放 3D 打字聲
+        var keyboards = new System.Collections.Generic.List<AudioSource>();
+        (string fbx, Vector3 desk)[] seats =
+        {
+            ("Coworker_Lewis", new Vector3(-4.5f, 0, -3)),
+            ("Coworker_Suzie", new Vector3(-2f, 0, 0)),
+            ("Coworker_Martha", new Vector3(-7f, 0, 0)),
+        };
+        foreach (var (fbx, desk) in seats)
+        {
+            GameObject c = MixamoCharacter(fbx, desk + new Vector3(0, 0, -0.78f));
+            if (c == null) continue;
+            AudioSource k = c.AddComponent<AudioSource>();
+            Spatial(k, 0.35f, 8f);
+            keyboards.Add(k);
+        }
+
+        // 主管：Mixamo 的 Joe，照 JohnLemon 的 Ghost 做法 —— NavMeshAgent＋WaypointPatrol＋前方視線 Observer
+        GameObject boss = MixamoCharacter("Boss_Joe", new Vector3(-8.6f, 0, -5.6f)) ?? new GameObject("Boss");
+        boss.name = "Boss";
+        NavMeshAgent agent = boss.AddComponent<NavMeshAgent>();
+        agent.speed = 1.1f;
+        agent.angularSpeed = 240;
+        agent.radius = 0.3f;
+        agent.stoppingDistance = 0.3f;
+        Spatial(boss.AddComponent<AudioSource>(), 0.9f, 9f);
+        WaypointPatrol patrol = boss.AddComponent<WaypointPatrol>();
+        Vector3[] route = { new Vector3(-8.6f, 0, -5.6f), new Vector3(4.5f, 0, -5.6f), new Vector3(1.2f, 0, 1.4f), new Vector3(-8.6f, 0, 1.4f) };
+        Transform routeRoot = new GameObject("Boss Waypoints").transform;
+        patrol.waypoints = new Transform[route.Length];
+        for (int i = 0; i < route.Length; i++)
+        {
+            patrol.waypoints[i] = new GameObject("Waypoint (" + i + ")").transform;
+            patrol.waypoints[i].SetParent(routeRoot);
+            patrol.waypoints[i].position = route[i];
+        }
+        // 視線範圍：主管前方和兩側的膠囊觸發區（JohnLemon 的 PointOfView）
+        GameObject pov = new GameObject("PointOfView");
+        pov.transform.SetParent(boss.transform, false);
+        pov.transform.localPosition = new Vector3(0, 1.4f, 0);
+        CapsuleCollider eye = pov.AddComponent<CapsuleCollider>();
+        eye.isTrigger = true;
+        eye.direction = 2;   // 沿 Z 軸（主管面向的方向）
+        eye.center = new Vector3(0, 0, 1.2f);
+        eye.radius = 2f;
+        eye.height = 6f;
+        Observer observer = pov.AddComponent<Observer>();
+        observer.player = hero.transform;
+        SlackOff slack = day.typing.GetComponent<SlackOff>();
+        observer.slackOff = slack;
+        slack.boss = boss.transform;
+        slack.player = hero.transform;
+        boss.SetActive(false);   // 等 NavMesh 建好才出場（OfficeAudioAndNav）
+
+        // NavMesh 用碰撞體來算，地點觸發區不算障礙物
+        GameObject nav = new GameObject("Navigation & Ambience");
+        NavMeshSurface surface = nav.AddComponent<NavMeshSurface>();
+        surface.collectObjects = CollectObjects.All;
+        surface.useGeometry = NavMeshCollectGeometry.PhysicsColliders;
+        OfficeAudioAndNav oan = nav.AddComponent<OfficeAudioAndNav>();
+        oan.surface = surface;
+        oan.boss = boss;
+        oan.hum = nav.AddComponent<AudioSource>();
+        oan.hum.loop = true;
+        oan.hum.volume = 0.12f;
+        oan.keyboards = keyboards.ToArray();
+
+        // 氣氛：壓力暗角＋太陽隨時鐘
+        Atmosphere atmo = day.gameObject.AddComponent<Atmosphere>();
+        atmo.sun = sun;
+        atmo.sunColor = new Gradient();
+        atmo.sunColor.SetKeys(
+            new[] { new GradientColorKey(Hex("#ffd6a0"), 0), new GradientColorKey(Hex("#fff4e6"), 0.4f), new GradientColorKey(Hex("#ffe0b8"), 0.8f), new GradientColorKey(Hex("#ff8a4a"), 1) },
+            new[] { new GradientAlphaKey(1, 0), new GradientAlphaKey(1, 1) });
+    }
+
+    static void Spatial(AudioSource a, float volume, float maxDistance)
+    {
+        a.loop = true;
+        a.volume = volume;
+        a.spatialBlend = 1;   // 3D 音效：距離越遠越小聲
+        a.rolloffMode = AudioRolloffMode.Linear;
+        a.minDistance = 1;
+        a.maxDistance = maxDistance;
+        a.playOnAwake = false;
+    }
+
+    // Mixamo 下載的角色（含動畫）：設成 Humanoid、動畫循環，做一個只有這段動畫的 Animator
+    // 檔案不在就回 null（還沒下載也能建場景）
+    static GameObject MixamoCharacter(string name, Vector3 pos)
+    {
+        string path = "Assets/Course/Characters/" + name + ".fbx";
+        ModelImporter mi = AssetImporter.GetAtPath(path) as ModelImporter;
+        if (mi == null) return null;
+        if (mi.animationType != ModelImporterAnimationType.Human || mi.defaultClipAnimations.Length == 0 || !mi.clipAnimations.All(c => c.loopTime))
+        {
+            mi.animationType = ModelImporterAnimationType.Human;
+            mi.avatarSetup = ModelImporterAvatarSetup.CreateFromThisModel;
+            ModelImporterClipAnimation[] clips = mi.defaultClipAnimations;
+            foreach (var c in clips) { c.loopTime = true; c.lockRootPositionXZ = true; c.keepOriginalPositionY = true; }
+            mi.clipAnimations = clips;
+            mi.SaveAndReimport();
+        }
+        // 貼圖包在 FBX 裡，抽出來材質才有顏色（只做一次）
+        string texDir = "Assets/Course/Characters/" + name + "_Textures";
+        if (!AssetDatabase.IsValidFolder(texDir))
+        {
+            AssetDatabase.CreateFolder("Assets/Course/Characters", name + "_Textures");
+            mi.ExtractTextures(texDir);
+            AssetDatabase.Refresh();
+            mi.SaveAndReimport();
+        }
+        if (mi.materialSearch != ModelImporterMaterialSearch.Everywhere)
+        {
+            mi.materialSearch = ModelImporterMaterialSearch.Everywhere;   // 貼圖資料夾不叫 Textures，要讓它到處找
+            mi.SaveAndReimport();
+        }
+        AnimationClip clip = AssetDatabase.LoadAllAssetsAtPath(path).OfType<AnimationClip>().First(c => !c.name.StartsWith("__preview"));
+        string ctrlPath = "Assets/Course/Characters/" + name + ".controller";
+        AssetDatabase.DeleteAsset(ctrlPath);
+        var ctrl = UnityEditor.Animations.AnimatorController.CreateAnimatorControllerAtPathWithClip(ctrlPath, clip);
+        GameObject g = (GameObject)PrefabUtility.InstantiatePrefab(AssetDatabase.LoadAssetAtPath<GameObject>(path));
+        g.name = name;
+        SkinMixamo(g, texDir);
+        g.transform.position = pos;
+        Animator anim = g.GetComponent<Animator>();
+        anim.runtimeAnimatorController = ctrl;
+        anim.applyRootMotion = false;
+        return g;
+    }
+
+    // Mixamo 的貼圖抽出來後，導入的材質不會自動接上，所以自己做 URP 材質：
+    // 1001 是身體衣服、1002 是頭髮（有透明，要開 Alpha Clipping）
+    static void SkinMixamo(GameObject g, string texDir)
+    {
+        string[] pngs = System.IO.Directory.GetFiles(texDir, "*_Diffuse.png");
+        foreach (Renderer r in g.GetComponentsInChildren<Renderer>())
+        {
+            var mats = r.sharedMaterials;
+            for (int i = 0; i < mats.Length; i++)
+            {
+                bool hair = mats[i] && mats[i].name.ToLower().Contains("hair");
+                string diffuse = pngs.FirstOrDefault(f => f.Contains(hair ? "_1002_" : "_1001_")) ?? pngs.FirstOrDefault();
+                if (diffuse == null) continue;
+                diffuse = diffuse.Replace('\\', '/');
+                string matPath = diffuse.Replace("_Diffuse.png", "_URP.mat");
+                Material m = AssetDatabase.LoadAssetAtPath<Material>(matPath);
+                if (m == null)
+                {
+                    m = new Material(Shader.Find("Universal Render Pipeline/Lit"));
+                    m.SetTexture("_BaseMap", AssetDatabase.LoadAssetAtPath<Texture2D>(diffuse));
+                    string normal = diffuse.Replace("_Diffuse", "_Normal");
+                    if (System.IO.File.Exists(normal))
+                    {
+                        TextureImporter ti = (TextureImporter)AssetImporter.GetAtPath(normal);
+                        if (ti.textureType != TextureImporterType.NormalMap) { ti.textureType = TextureImporterType.NormalMap; ti.SaveAndReimport(); }
+                        m.SetTexture("_BumpMap", AssetDatabase.LoadAssetAtPath<Texture2D>(normal));
+                        m.EnableKeyword("_NORMALMAP");
+                    }
+                    m.SetFloat("_Smoothness", 0.25f);
+                    if (hair)
+                    {
+                        m.SetFloat("_AlphaClip", 1);
+                        m.SetFloat("_Cutoff", 0.5f);
+                        m.EnableKeyword("_ALPHATEST_ON");
+                    }
+                    AssetDatabase.CreateAsset(m, matPath);
+                }
+                mats[i] = m;
+            }
+            r.sharedMaterials = mats;
+        }
+    }
+
+    // 主管反光人影：頭＋肩膀的剪影，邊緣柔和
+    static Sprite SilhouetteSprite()
+    {
+        const string path = "Assets/Course/Materials/Silhouette.png";
+        if (!System.IO.File.Exists(path))
+        {
+            const int w = 150, h = 210;
+            var t = new Texture2D(w, h);
+            for (int y = 0; y < h; y++)
+                for (int x = 0; x < w; x++)
+                {
+                    float head = 1 - Mathf.Clamp01((Vector2.Distance(new Vector2(x, y), new Vector2(75, 150)) - 32) / 6f);
+                    float sx = (x - 75) / 70f, sy = (y - 10) / 95f;   // 肩膀：下半部的半橢圓
+                    float shoulders = y < 105 ? 1 - Mathf.Clamp01((Mathf.Sqrt(sx * sx + Mathf.Pow(Mathf.Max(0, sy), 2)) - 1) * 12) : 0;
+                    float neck = Mathf.Abs(x - 75) < 16 && y > 95 && y < 125 ? 1 : 0;
+                    t.SetPixel(x, y, new Color(0.05f, 0.05f, 0.06f, Mathf.Max(head, Mathf.Max(shoulders, neck))));
+                }
+            System.IO.File.WriteAllBytes(path, t.EncodeToPNG());
+            AssetDatabase.ImportAsset(path);
+            TextureImporter ti = (TextureImporter)AssetImporter.GetAtPath(path);
+            ti.textureType = TextureImporterType.Sprite;
+            ti.alphaIsTransparency = true;
+            ti.SaveAndReimport();
+        }
+        return AssetDatabase.LoadAssetAtPath<Sprite>(path);
     }
 
     static CinemachineCamera VirtualCam(string name, Transform follow, float fov, Vector3 offset, Vector2 screenPos)
@@ -387,6 +599,33 @@ public static class OfficeBuilder
         typing.hint = hint.gameObject;
         typing.desk = Object.FindObjectsByType<PlaceZone>(FindObjectsSortMode.None).First(z => z.placeId == "Desk");
         typing.dialog = dlg;
+        // 摸魚畫面（Tab 切換）：蓋在程式碼上面的「迷因板」
+        RectTransform meme = Panel("MemePanel", term, Hex("#f2efe9"), new Vector2(0.5f, 0.5f), new Vector2(0, -8), new Vector2(1240, 712));
+        Label("Title", meme, 30, TextAnchor.UpperLeft, new Vector2(0, 1), new Vector2(40, -24), new Vector2(1100, 44), Ink).text = "迷因板・熱門";
+        Label("Memes", meme, 28, TextAnchor.UpperLeft, new Vector2(0, 1), new Vector2(40, -90), new Vector2(1160, 560), Dim).text =
+            "工程師的三種狀態：能動、不能動、不知道為什麼能動\n\n" +
+            "「這個需求很簡單」—— 每一個 PM\n\n" +
+            "星期五下午五點：「可以先上線嗎？」\n\n" +
+            "我的程式碼：1% 靈感，99% 咖啡因\n\n" +
+            "（按 Tab 切回工作）";
+        // 主管的反光人影：浮在螢幕右邊，越近越清楚（SlackOff 控制透明度）
+        Image reflection = Panel("BossReflection", term, new Color(0, 0, 0, 0), new Vector2(1, 0.5f), new Vector2(-40, -20), new Vector2(300, 420)).GetComponent<Image>();
+        reflection.sprite = SilhouetteSprite();
+        reflection.raycastTarget = false;
+        SlackOff slackOff = canvasGo.AddComponent<SlackOff>();
+        slackOff.typing = typing;
+        slackOff.memePanel = meme.gameObject;
+        slackOff.reflection = reflection;
+        Label("TabHint", term, 20, TextAnchor.MiddleRight, new Vector2(1, 0), new Vector2(-30, 52), new Vector2(500, 30), Hex("#8a8a8a")).text = "Tab 摸魚（小心主管）";
+
+        // Slack 訊息卡片（右上角）：範本，SlackFeed 複製出來用
+        RectTransform slackCard = Panel("SlackCard", root, Color.white, new Vector2(1, 1), new Vector2(-30, -30), new Vector2(460, 92));
+        Border(slackCard.gameObject);
+        Panel("Stripe", slackCard, Hex("#4a154b"), new Vector2(0, 0.5f), Vector2.zero, new Vector2(8, 92));
+        Label("Channel", slackCard, 18, TextAnchor.UpperLeft, new Vector2(0, 1), new Vector2(24, -10), new Vector2(420, 26), Hex("#4a154b")).text = "# 工作群組";
+        Label("Text", slackCard, 22, TextAnchor.UpperLeft, new Vector2(0, 1), new Vector2(24, -38), new Vector2(420, 50), Ink);
+        canvasGo.AddComponent<SlackFeed>().cardTemplate = slackCard;
+
         dim.transform.SetAsLastSibling();   // 對話框永遠蓋在最上面
 
         DayManager day = new GameObject("DayManager").AddComponent<DayManager>();
@@ -463,6 +702,7 @@ public static class OfficeBuilder
         ring.transform.SetParent(g.transform, true);
         ring.SetActive(false);
         z.marker = ring;
+        g.AddComponent<NavMeshModifier>().ignoreFromBuild = true;
     }
 
     static void PostProcess()
@@ -481,6 +721,9 @@ public static class OfficeBuilder
         dof.focalLength.Override(60f);
         dof.aperture.Override(2.8f);
         dof.active = false;
+        // 色差：壓力高時畫面邊緣糊掉（Atmosphere 控制強度）
+        ChromaticAberration chroma = profile.Add<ChromaticAberration>(true);
+        chroma.intensity.Override(0f);
         AssetDatabase.CreateAsset(profile, path);
         foreach (VolumeComponent c in profile.components) AssetDatabase.AddObjectToAsset(c, profile);
         Volume vol = new GameObject("Global Volume").AddComponent<Volume>();

@@ -247,6 +247,23 @@ public class DayManager : MonoBehaviour
         RefreshHud();
     }
 
+    // 摸魚、Slack、主管查哨用：直接改數值，不跳對話框
+    public int Stress => stress;
+    public int Trust => trust;
+    public float Clock01 => Mathf.InverseLerp(startMinute, endMinute, clock);   // 0＝09:00、1＝18:00，給日光用
+    public void AddStress(int n) { stress = Mathf.Clamp(stress + n, 0, 100); RefreshHud(); }
+
+    // 臨時插進來的事（例如摸魚被主管抓到）：跳一個只有「繼續」的對話框，也記進時間軸
+    public void Interrupt(string title, string text, string log, int stressDelta, int trustDelta)
+    {
+        stress = Mathf.Clamp(stress + stressDelta, 0, 100);
+        trust = Mathf.Clamp(trust + trustDelta, 0, 100);
+        records.Add(new Record { no = records.Count + 1, time = Clock(clock), optionId = "interrupt", causes = new List<int>(), text = log });
+        RefreshHud();
+        var o = new Option { stress = stressDelta, trust = trustDelta };
+        dialog.Show(Clock(clock) + "　" + title, text + "\n\n" + Delta(o), new[] { "繼續" }, _ => { });
+    }
+
     void SetWalking(bool on)
     {
         if (walker == null) walker = FindFirstObjectByType<SimpleWalker>();

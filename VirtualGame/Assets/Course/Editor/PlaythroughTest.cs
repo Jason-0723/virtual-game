@@ -38,6 +38,11 @@ public class PlaythroughTest
             dialog.optionButtons[0].onClick.Invoke();
             yield return new WaitForSecondsRealtime(1.5f);
             Snap("follow");
+            // 從高處看整間辦公室：同事、主管（相機位置當下設定、立刻拍，Cinemachine 來不及改）
+            Transform camT = Camera.main.transform;
+            camT.position = new Vector3(-3f, 4.2f, -9.5f);
+            camT.LookAt(new Vector3(-4f, 0.6f, -1.5f));
+            Snap("office");
 
             // 打程式碼：走到座位 → 出現「按 E」提示 → 打 100 下，進度要上升
             TypingTerminal typing = UnityEngine.Object.FindFirstObjectByType<TypingTerminal>();
@@ -50,7 +55,24 @@ public class PlaythroughTest
             Snap("typing");
             Assert.Greater(day.Progress, before, "打字沒有讓進度上升");
             Assert.IsTrue(typing.codeText.text.Contains("class"), "螢幕上沒有打出程式碼");
-            typing.Close();
+
+            // 摸魚：按 Tab 切到迷因畫面，主管走到身後 → 螢幕浮出人影 → 被抓
+            SlackOff slack = UnityEngine.Object.FindFirstObjectByType<SlackOff>();
+            typing.Open();
+            UnityEngine.AI.NavMeshAgent boss = GameObject.Find("Boss").GetComponent<UnityEngine.AI.NavMeshAgent>();
+            boss.Warp(player.transform.position - Vector3.forward * 1.6f);
+            yield return null;
+            yield return null;
+            Assert.Greater(slack.reflection.color.a, 0.3f, "主管就在身後，螢幕卻沒有反光人影");
+            Assert.IsFalse(dialog.IsOpen, "沒在摸魚卻被主管抓");
+            slack.memePanel.SetActive(true);   // 等同按 Tab
+            Snap("slacking");
+            float until = Time.realtimeSinceStartup + 3f;
+            while (!dialog.IsOpen && Time.realtimeSinceStartup < until) yield return null;
+            Assert.IsTrue(dialog.IsOpen && dialog.titleText.text.Contains("主管站在你身後"), "摸魚時主管在身後卻沒有被抓");
+            dialog.optionButtons[0].onClick.Invoke();
+            Assert.IsFalse(slack.IsSlacking);
+            boss.Warp(new Vector3(4.5f, 0, -5.6f));   // 把主管送走，後面的試玩才不受影響
         }
         day.minutesPerSecond = 60f;   // 一秒過一小時
 
@@ -79,7 +101,7 @@ public class PlaythroughTest
         // 先出現因果時間軸，按「看結局」才出現結局
         TimelineView timeline = UnityEngine.Object.FindFirstObjectByType<TimelineView>();
         Assert.IsTrue(timeline.IsOpen, "下班後沒有出現時間軸");
-        Assert.AreEqual(seen.Count, day.Records.Count, "有選擇沒被記錄");
+        Assert.AreEqual(seen.Count, System.Linq.Enumerable.Count(day.Records, r => r.optionId != "interrupt"), "有選擇沒被記錄");
         foreach (var r in day.Records)
             if (r.optionId == "caught-sorry" || r.optionId == "caught-delay")
                 Assert.IsNotEmpty(r.causes, "說謊被抓包卻沒連到站會");

@@ -68,7 +68,14 @@
   3. 半動態事件：`events.json` 分 `main`（09:00 站會、12:00 午餐、16:00 說謊被抓包、17:30 上線出事）、`slots`（7 個抽籤時間）、`pool`（10 件，依數值加權；技術債高 → bug 事件多）
   4. 打程式碼：座位按 E，按任何鍵打出 3～5 字（`TypingTerminal.cs`，內容是遊戲自己的程式）；專案只開新版 Input System，所以用 `Keyboard.current.anyKey` 代替 `Input.anyKeyDown`
   5. 因果時間軸：每個選擇都記錄，後果事件依 `causedBy` 連紅線（`TimelineView.cs`），按「看結局」接 4 種結局
-- 加分項（核心穩了再做）：Tab 摸魚＋主管巡邏、壓力暗角模糊、日光隨時鐘變、環境音、Slack 訊息卡片
+- ✅ 11/10 畫質升級（和 Gemini 討論，見 GRAPHICS-PLAN.md）：SSAO、木地板、材質分層、天花板＋日光燈、特寫景深＋輪廓光、正黑體＋程式碼上色、角色臉平滑
+- ✅ 11/10 加分項（參考老師的 JohnLemon 簡報）：
+  - 同事 3 人（Mixamo：Lewis／Suzie／Martha＋Typing）坐在座位打字、主管 Joe（Walking In Place）
+  - 主管巡邏 `WaypointPatrol.cs`（JohnLemon 的 Ghost：NavMeshAgent＋固定 waypoint）、視線 `Observer.cs`（PointOfView 觸發區＋Raycast）
+  - Tab 摸魚 `SlackOff.cs`：迷因畫面降壓力，主管靠近螢幕浮出反光人影，被看到就扣信任
+  - 3D 皮鞋聲、同事打字聲、冷氣聲、Slack 叮聲：`ProceduralAudio.cs` 用程式產生（AudioListener 照 JohnLemon 放在玩家身上）
+  - `Atmosphere.cs`：壓力越高暗角＋色差越重；太陽依時鐘從晨光轉夕陽
+  - `SlackFeed.cs`：右上角訊息卡片排隊彈出，每則壓力 +1
 - 12 月：換美術、加音效、找人試玩調數值
 - 1 月：找非資工系的同學試玩、調整、錄示範影片、交件
 
