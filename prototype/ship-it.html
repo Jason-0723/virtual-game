@@ -1,0 +1,396 @@
+<title>上線倒數</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* 版面：上方出勤列（時鐘、今天的上線目標、公司規定）＋ 下方三欄：待處理卡片｜正在處理｜App 預覽與評論 */
+:root {
+  --bg: #15171c; --panel: #1e2128; --panel2: #262a33; --line: #343945;
+  --fg: #e8e6e1; --dim: #9a9ca3; --accent: #f2b33d; --good: #4fbf7f; --bad: #e5604c; --info: #6aa8f0;
+  --phone: #fbfaf7; --phone-fg: #23211d; --brand: #ef6c33;
+  --font-ui: "Noto Sans TC", "Microsoft JhengHei", system-ui, sans-serif;
+  --font-code: "JetBrains Mono", Consolas, "Courier New", monospace;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body { background: var(--bg); color: var(--fg); font-family: var(--font-ui); font-size: 15px; line-height: 1.55;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 14px; }
+button { font: inherit; color: inherit; cursor: pointer; }
+button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.top { display: flex; flex-wrap: wrap; gap: 12px 24px; align-items: center; padding: 12px 16px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; }
+.clock { font-family: var(--font-code); font-size: 34px; font-weight: 600; color: var(--accent); font-variant-numeric: tabular-nums; letter-spacing: .02em; }
+.goal { min-width: 0; flex: 1 1 260px; }
+.goal b { color: var(--accent); }
+.meter { height: 6px; background: var(--panel2); border-radius: 3px; overflow: hidden; margin-top: 6px; }
+.meter i { display: block; height: 100%; background: var(--accent); width: 0; transition: width .4s; }
+.stats { display: flex; gap: 16px; font-size: 13px; color: var(--dim); }
+.stats b { display: block; font-size: 20px; color: var(--fg); font-variant-numeric: tabular-nums; }
+.rules { flex: 1 1 100%; display: flex; flex-wrap: wrap; gap: 8px; font-size: 13px; }
+.rules span { padding: 3px 10px; border-radius: 999px; background: var(--panel2); border: 1px solid var(--line); }
+.rules span.new { border-color: var(--accent); color: var(--accent); animation: pop .6s; }
+.rules .label { background: none; border: none; color: var(--dim); padding-left: 0; letter-spacing: .06em; }
+
+.main { display: grid; grid-template-columns: 240px minmax(0, 1fr) 300px; gap: 14px; margin-top: 14px; }
+@media (max-width: 980px) { .main { grid-template-columns: 1fr; } }
+.col { min-width: 0; }
+h2 { font-size: 12px; letter-spacing: .12em; color: var(--dim); margin: 0 0 8px; font-weight: 500; }
+
+.queue { display: flex; flex-direction: column; gap: 8px; }
+.q { text-align: left; padding: 10px 12px; background: var(--panel); border: 1px solid var(--line); border-left: 4px solid var(--info); border-radius: 8px; }
+.q.review { border-left-color: var(--accent); } .q.bug { border-left-color: var(--bad); } .q.ask { border-left-color: var(--info); } .q.fire { border-left-color: var(--bad); background: #3a1f1c; animation: shake .4s infinite; }
+.q small { display: block; color: var(--dim); font-size: 12px; }
+.q.active { outline: 2px solid var(--fg); }
+.empty { color: var(--dim); font-size: 13px; padding: 12px; border: 1px dashed var(--line); border-radius: 8px; }
+
+.work { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 18px; min-height: 420px; display: flex; flex-direction: column; gap: 12px; }
+.work .who { font-size: 13px; color: var(--dim); }
+.work h3 { margin: 0; font-size: 22px; text-wrap: balance; }
+.work p { margin: 0; max-width: 62ch; }
+.files { font-family: var(--font-code); font-size: 12px; color: var(--dim); }
+.files b { color: var(--good); font-weight: 400; }
+pre { margin: 0; background: #0f1115; border: 1px solid var(--line); border-radius: 8px; padding: 12px 0; overflow-x: auto; font-family: var(--font-code); font-size: 13.5px; line-height: 1.7; }
+pre .ln { display: block; padding: 0 14px; white-space: pre; }
+pre .ln.pick { cursor: pointer; } pre .ln.pick:hover { background: #252a33; }
+pre .ln.right { background: #1d3b2a; } pre .ln.wrong { background: #4a2420; }
+.k { color: #6fa3e6; } .s { color: #d99a6c; } .c { color: #6c9a58; }
+.choices { display: flex; flex-wrap: wrap; gap: 10px; margin-top: auto; }
+.choices button { padding: 10px 16px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel2); }
+.choices button:hover { border-color: var(--fg); }
+.choices .primary { background: var(--good); border-color: var(--good); color: #0d1a12; font-weight: 700; }
+.choices .danger { background: var(--bad); border-color: var(--bad); color: #fff; font-weight: 700; }
+.timer { height: 6px; background: var(--panel2); border-radius: 3px; overflow: hidden; }
+.timer i { display: block; height: 100%; background: var(--bad); }
+.result { padding: 12px 14px; border-radius: 8px; background: var(--panel2); border-left: 4px solid var(--good); }
+.result.badr { border-left-color: var(--bad); }
+
+.phone { background: var(--phone); color: var(--phone-fg); border-radius: 26px; border: 8px solid #0b0c0f; padding: 14px 12px 18px; min-height: 360px; position: relative; }
+.phone .bar { display: flex; justify-content: space-between; font-size: 11px; color: #625d55; margin-bottom: 8px; }
+.phone .brand { font-weight: 900; font-size: 20px; color: var(--brand); }
+.phone .stars { font-size: 12px; color: #625d55; }
+.feat { margin-top: 8px; padding: 8px 10px; border-radius: 10px; background: #f0ede6; font-size: 13px; animation: grow .5s; }
+.feat.broken { background: #fde3dc; color: #a3301c; }
+.feat.broken::after { content: " ⚠ 有錯誤"; font-weight: 700; }
+.placeholder { margin-top: 8px; padding: 8px 10px; border-radius: 10px; border: 1px dashed #b9b3a7; font-size: 12px; color: #6b665d; }
+.reviews { margin-top: 12px; display: flex; flex-direction: column; gap: 8px; }
+.rev { font-size: 13px; padding: 8px 10px; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; }
+.rev .st { color: var(--accent); }
+
+.overlay { position: fixed; inset: 0; background: rgba(8,9,12,.82); display: flex; align-items: center; justify-content: center; padding: 16px; z-index: 20; }
+.sheet { max-width: 620px; width: 100%; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 26px; max-height: 92vh; overflow: auto; }
+.sheet h1 { margin: 0 0 6px; font-size: 30px; font-weight: 900; text-wrap: balance; }
+.sheet .big { font-size: 46px; font-weight: 900; color: var(--accent); font-variant-numeric: tabular-nums; }
+.sheet ul { padding-left: 1.2em; }
+.toast { position: fixed; right: max(16px, env(safe-area-inset-right, 0px)); bottom: calc(16px + env(safe-area-inset-bottom, 0px)); background: var(--panel2); border: 1px solid var(--line); border-left: 4px solid var(--accent); padding: 10px 14px; border-radius: 8px; max-width: 320px; z-index: 30; animation: grow .3s; }
+@keyframes pop { from { transform: scale(1.25); } to { transform: none; } }
+@keyframes grow { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@keyframes shake { 0%,100% { transform: none; } 25% { transform: translateX(-2px); } 75% { transform: translateX(2px); } }
+@media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+</style>
+
+<div class="top">
+  <div class="clock" id="clock">09:00</div>
+  <div class="goal">今天 18:00 上線：<b>飯飯外送 v0.3</b>（登入、菜單、購物車、付款）
+    <div class="meter"><i id="shipBar"></i></div></div>
+  <div class="stats">
+    <div><b id="sTrust">50</b>主管信任</div>
+    <div><b id="sStress">20</b>壓力</div>
+    <div><b id="sBugs">0</b>漏掉的錯誤</div>
+  </div>
+  <div class="rules" id="rules"><span class="label">公司規定</span></div>
+</div>
+
+<div class="main">
+  <div class="col">
+    <h2>待處理</h2>
+    <div class="queue" id="queue"></div>
+  </div>
+  <div class="col">
+    <h2>正在處理</h2>
+    <div class="work" id="work"></div>
+  </div>
+  <div class="col">
+    <h2>App 現在的樣子</h2>
+    <div class="phone" id="phone"></div>
+    <div class="reviews" id="reviews"></div>
+  </div>
+</div>
+
+<div class="overlay" id="intro">
+  <div class="sheet">
+    <h1>上線倒數</h1>
+    <p>你是「飯飯外送」新創公司的工程師，今天 18:00 要上線新版本。</p>
+    <ul>
+      <li><b>審程式</b>：同事送來的程式碼，照<b>公司規定</b>決定核准或退回。規定會越來越多。</li>
+      <li><b>抓錯誤</b>：顧客回報問題，點出出錯的那一行。</li>
+      <li><b>需求</b>：PM 和業務會一直塞事情給你，做不完就要取捨。</li>
+      <li><b>事故</b>：紅色卡片有倒數，來不及就出大事。</li>
+    </ul>
+    <p>你核准的功能會出現在右邊的 App 上；你放過的錯誤，上線後全世界都會看到。</p>
+    <div class="choices"><button class="primary" id="start">打卡上班</button></div>
+  </div>
+</div>
+
+<script>
+// ───── 內容：每張卡片在幾點出現、是什麼類型、怎麼判斷 ─────
+const RULES = [
+  { at: 540, id: 'R1', text: '密碼、金鑰不能寫死在程式裡' },
+  { at: 660, id: 'R2', text: '改到金額的程式，一定要附測試檔' },
+  { at: 810, id: 'R3', text: '顧客電話、地址不能印進記錄檔（log）' },
+];
+
+const CARDS = [
+  { at: 545, type: 'review', who: '同事阿傑送來程式碼', title: '登入頁：串接會員資料庫', cost: 20,
+    files: ['LoginPage.cs'], feature: '登入', violates: 'R1',
+    code: [['k','var '],'db = Database.Connect(', ['s','"shop-db"'], ', password: ', ['s','"admin123"'], ');'],
+    extra: ['if (db.CheckUser(email, pw)) ShowMenu();'],
+    why: '密碼 "admin123" 直接寫在程式裡，推上 GitHub 全世界都看得到。' },
+  { at: 600, type: 'bug', who: '客服轉來顧客回報', title: '「我點 3 份雞排飯，只算 2 份的錢」', cost: 40,
+    lines: ['int total = 0;', 'for (int i = 1; i < items.Count; i++)', '    total += items[i].price * items[i].qty;', 'return total;'],
+    answer: 1, why: '迴圈從 1 開始，第一個品項永遠沒算到。應該從 0 開始。' },
+  { at: 630, type: 'review', who: '同事小美送來程式碼', title: '菜單頁：加上分類標籤', cost: 20,
+    files: ['MenuPage.cs', 'MenuPageTest.cs'], feature: '菜單分類', violates: null,
+    code: [['k','foreach '],'(var c ', ['k','in '],'menu.Categories)'], extra: ['    AddTab(c.Name);'],
+    why: '沒有違反任何規定，乾淨俐落。' },
+  { at: 690, type: 'ask', who: 'PM 走到你旁邊', title: '「優惠券功能，今天可以加嗎？」', cost: 0,
+    text: '行銷明天要發新聞稿，PM 說「應該不難吧」。',
+    options: [
+      { label: '完整做（花 3 小時）', cost: 180, feature: '優惠券', stress: 15, trust: 10, note: '你把優惠券做完了，但下午的時間全被吃掉。' },
+      { label: '簡化版：只放一張固定的券（1 小時）', cost: 60, feature: '優惠券（簡化版）', stress: 5, trust: 5, note: 'PM 有點失望，但新聞稿有東西可以寫了。' },
+      { label: '排到下週', cost: 10, stress: -5, trust: -10, note: 'PM 皺眉走開。但你保住了今天的上線。' },
+    ] },
+  { at: 720, type: 'review', who: '同事阿傑送來程式碼', title: '購物車：計算總價（含滿千折百）', cost: 20,
+    files: ['Cart.cs'], feature: '購物車', violates: 'R2',
+    code: [['k','if '],'(total >= 1000) total -= 100;'], extra: ['return total;'],
+    why: '改到金額，卻沒有附 CartTest.cs。哪天滿千折百變成滿千折千，沒人會發現。' },
+  { at: 780, type: 'review', who: '同事小美送來程式碼', title: '購物車：運費計算', cost: 20,
+    files: ['Shipping.cs', 'ShippingTest.cs'], feature: '運費', violates: null,
+    code: ['fee = distanceKm <= 3 ? ', ['s','30'], ' : ', ['s','30'], ' + (distanceKm - 3) * ', ['s','10'], ';'], extra: [],
+    why: '有附測試，符合規定。' },
+  { at: 840, type: 'fire', who: '監控系統', title: '伺服器 CPU 100%！App 打不開了', cost: 30, seconds: 15,
+    text: '下午茶尖峰，訂單湧進來，伺服器快撐不住了。',
+    options: [
+      { label: '回到上一個穩定版本', good: true, note: '十秒後 App 恢復了。先止血，再查原因。' },
+      { label: '重開伺服器', good: true, half: true, note: '暫時恢復了，但半小時後可能又會出事。' },
+      { label: '先觀察看看', good: false, note: 'App 掛了 40 分鐘。客服電話響個不停。' },
+    ] },
+  { at: 870, type: 'review', who: '外包工程師送來程式碼', title: '外送員地圖：顯示外送進度', cost: 20,
+    files: ['DeliveryMap.cs', 'DeliveryMapTest.cs'], feature: '外送員地圖', violates: 'R3',
+    code: ['Log(', ['s','"送餐給："'], ' + order.Phone + ', ['s','" "'], ' + order.Address);'], extra: ['map.ShowRider(order.RiderId);'],
+    why: '把顧客電話和地址印進記錄檔，記錄檔外洩就是個資外洩。' },
+  { at: 930, type: 'bug', who: '客服轉來顧客回報', title: '「半夜 12 點後，外送費都變 0 元」', cost: 40,
+    lines: ['int hour = DateTime.Now.Hour;', 'if (hour > 24) fee = 0;   // 24 小時制', 'fee = hour < 12 ? 0 : fee;', 'return fee;'],
+    answer: 2, why: '第三行把「中午 12 點前」都設成免運，半夜 0～11 點全免運費。' },
+  { at: 960, type: 'ask', who: '業務在群組 @ 你', title: '「大客戶說要深色模式，今天能上嗎？」', cost: 0,
+    text: '這件事不在今天的上線清單上。',
+    options: [
+      { label: '硬塞進今天（2 小時）', cost: 120, feature: '深色模式', stress: 15, trust: 5, debt: 1, note: '你趕出來了，但沒時間好好測。' },
+      { label: '跟業務說下週，請 PM 排', cost: 10, stress: 0, trust: 5, note: '業務回了一個「好吧😢」。拒絕很難，但亂答應更慘。' },
+    ] },
+  { at: 1000, type: 'review', who: '同事阿傑送來程式碼', title: '付款：串接金流', cost: 20,
+    files: ['Payment.cs', 'PaymentTest.cs'], feature: '付款', violates: null,
+    code: [['k','var '],'key = Env.Get(', ['s','"PAY_KEY"'], ');   ', ['c','// 金鑰從環境變數讀']], extra: ['pay.Charge(order.Total, key);'],
+    why: '金鑰從環境變數讀、有附測試，三條規定都符合。' },
+  { at: 1030, type: 'fire', who: '主管衝過來', title: '「付款頁有人重複扣款兩次！」', cost: 30, seconds: 12,
+    text: '社群上已經有人在罵了。',
+    options: [
+      { label: '先把付款功能關掉，再查原因', good: true, note: '少賺了一小時的錢，但沒有更多人被重複扣款。' },
+      { label: '叫客服先安撫顧客', good: false, note: '又有 37 個人被重複扣款。' },
+    ] },
+];
+
+// ───── 狀態 ─────
+let clock = 540, END = 1080, MIN_PER_SEC = 4;   // 一秒 4 分鐘：一天約 2 分 15 秒，加上處理卡片約 3 分鐘
+let queue = [], active = null, lastTick = 0, running = false, ruleIdx = 0, cardIdx = 0;
+let trust = 50, stress = 20, bugs = [], shipped = [], lostTime = 0, fireTimer = null;
+const $ = id => document.getElementById(id);
+const fmt = m => String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(Math.floor(m % 60)).padStart(2, '0');
+
+function codeHtml(parts) {
+  return parts.map(p => Array.isArray(p) ? `<span class="${p[0]}">${esc(p[1])}</span>` : esc(p)).join('');
+}
+function esc(s) { return String(s).replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c])); }
+
+function toast(text) {
+  const t = document.createElement('div');
+  t.className = 'toast'; t.textContent = text;
+  document.body.appendChild(t);
+  setTimeout(() => t.remove(), 2600);
+}
+
+function stat(dTrust = 0, dStress = 0) {
+  trust = Math.max(0, Math.min(100, trust + dTrust));
+  stress = Math.max(0, Math.min(100, stress + dStress));
+  $('sTrust').textContent = trust; $('sStress').textContent = stress; $('sBugs').textContent = bugs.length;
+}
+
+// ───── 時鐘：卡片和規定照時間出現；處理卡片會花掉遊戲時間 ─────
+function tick(now) {
+  if (!running) return;
+  const dt = lastTick ? (now - lastTick) / 1000 : 0;
+  lastTick = now;
+  clock += dt * MIN_PER_SEC;
+  while (ruleIdx < RULES.length && RULES[ruleIdx].at <= clock) addRule(RULES[ruleIdx++]);
+  while (cardIdx < CARDS.length && CARDS[cardIdx].at <= clock) { queue.push(CARDS[cardIdx++]); renderQueue(); }
+  if (!active && queue.length) open(queue.find(c => c.type === 'fire') || queue[0]);
+  $('clock').textContent = fmt(clock);
+  if (clock >= END) return release();
+  requestAnimationFrame(tick);
+}
+
+function spend(min) { clock += min; }
+
+function addRule(r) {
+  const s = document.createElement('span');
+  s.className = 'new'; s.textContent = r.id + '　' + r.text;
+  $('rules').appendChild(s);
+  setTimeout(() => s.classList.remove('new'), 3000);
+  if (r.at > 540) toast('新規定：' + r.text);
+}
+
+function renderQueue() {
+  const q = $('queue');
+  q.innerHTML = queue.length ? '' : '<div class="empty">目前沒事。喝口水吧。</div>';
+  const tag = { review: '審程式', bug: '抓錯誤', ask: '需求', fire: '事故！' };
+  for (const c of queue) {
+    const b = document.createElement('button');
+    b.className = 'q ' + c.type + (c === active ? ' active' : '');
+    b.innerHTML = `<small>${tag[c.type]}・${fmt(c.at)}</small>${esc(c.title)}`;
+    b.onclick = () => { if (!active || active.type !== 'fire') open(c); };
+    q.appendChild(b);
+  }
+}
+
+// ───── 卡片 ─────
+function open(c) {
+  active = c; renderQueue();
+  const w = $('work');
+  const head = `<div class="who">${esc(c.who)}</div><h3>${esc(c.title)}</h3>`;
+  if (c.type === 'review') {
+    const lines = [codeHtml(c.code), ...c.extra.map(esc)].map(l => `<span class="ln">${l}</span>`).join('');
+    const files = c.files.map(f => f.includes('Test') ? `<b>${f}</b>` : f).join('　');
+    w.innerHTML = head + `<div class="files">變更的檔案：${files}</div><pre>${lines}</pre>
+      <p style="color:var(--dim);font-size:13px">照上方的公司規定檢查。測試檔是名字裡有 Test 的檔案。</p>
+      <div class="choices"><button class="primary" id="ok">核准合併</button><button class="danger" id="no">退回修改</button></div>`;
+    $('ok').onclick = () => review(c, true);
+    $('no').onclick = () => review(c, false);
+  } else if (c.type === 'bug') {
+    w.innerHTML = head + `<p>點出出錯的那一行：</p><pre>${c.lines.map((l, i) => `<span class="ln pick" data-i="${i}">${esc(l)}</span>`).join('')}</pre>`;
+    w.querySelectorAll('.pick').forEach(el => el.onclick = () => bug(c, +el.dataset.i, el));
+  } else {
+    w.innerHTML = head + `<p>${esc(c.text)}</p>` + (c.type === 'fire' ? '<div class="timer"><i id="fireBar"></i></div>' : '') +
+      `<div class="choices">${c.options.map((o, i) => `<button data-i="${i}">${esc(o.label)}</button>`).join('')}</div>`;
+    w.querySelectorAll('.choices button').forEach(el => el.onclick = () => decide(c, c.options[+el.dataset.i]));
+    if (c.type === 'fire') startFire(c);
+  }
+}
+
+function done(c, html, bad) {
+  queue = queue.filter(x => x !== c);
+  active = null;
+  $('work').innerHTML = `<div class="result ${bad ? 'badr' : ''}">${html}</div><div class="choices"><button class="primary" id="next">下一件</button></div>`;
+  $('next').onclick = () => { if (queue.length) open(queue.find(x => x.type === 'fire') || queue[0]); else renderIdle(); };
+  renderQueue(); renderPhone();
+}
+function renderIdle() { $('work').innerHTML = '<p style="color:var(--dim)">桌上暫時清空了。下一件事很快就會來。</p>'; }
+
+function review(c, approve) {
+  spend(c.cost);
+  const bad = !!c.violates;
+  if (approve && !bad) { shipped.push({ name: c.feature }); stat(5, 0); done(c, `<b>核准得好。</b>${esc(c.why)}<br>App 多了「${esc(c.feature)}」。`); }
+  else if (!approve && bad) { stat(8, 3); done(c, `<b>抓到了！</b>${esc(c.why)}<br>同事改好後重送，功能會晚一點上。`); setTimeout(() => shipped.push({ name: c.feature }) && renderPhone(), 3000); }
+  else if (approve && bad) { shipped.push({ name: c.feature, broken: true, why: c.why }); bugs.push(c.why); stat(0, 5); done(c, `<b>你核准了。</b>看起來能動……<br>（上線後就知道了）`, true); }
+  else { stat(-8, 5); done(c, `<b>你退回了一段沒問題的程式。</b>${esc(c.why)}<br>同事有點不爽，功能晚了一小時。`, true); spend(60); setTimeout(() => shipped.push({ name: c.feature }) && renderPhone(), 3000); }
+}
+
+function bug(c, i, el) {
+  spend(c.cost);
+  const right = i === c.answer;
+  el.classList.add(right ? 'right' : 'wrong');
+  if (!right) { bugs.push(c.title + '（沒修好）'); stat(-5, 8); }
+  else stat(6, -3);
+  setTimeout(() => done(c, right ? `<b>找到了！</b>${esc(c.why)}` : `<b>不是這行。</b>${esc(c.why)}<br>這個錯誤會跟著上線。`, !right), 600);
+}
+
+function decide(c, o) {
+  clearInterval(fireTimer);
+  if (c.type === 'fire') {
+    spend(c.cost);
+    if (!o.good) { bugs.push(c.title); stat(-15, 15); }
+    else stat(o.half ? 2 : 8, o.half ? 5 : -5);
+    return done(c, `<b>${o.good ? '處理好了。' : '出大事了。'}</b>${esc(o.note)}`, !o.good);
+  }
+  spend(o.cost || 0);
+  if (o.feature) shipped.push({ name: o.feature, broken: !!o.debt, why: o.debt ? '趕出來沒測，切換時畫面會閃爍' : '' });
+  if (o.debt) bugs.push('深色模式沒測');
+  stat(o.trust || 0, o.stress || 0);
+  done(c, esc(o.note));
+}
+
+function startFire(c) {
+  const t0 = performance.now(), ms = c.seconds * 1000;
+  fireTimer = setInterval(() => {
+    const left = 1 - (performance.now() - t0) / ms;
+    const bar = $('fireBar'); if (bar) bar.style.width = Math.max(0, left * 100) + '%';
+    if (left <= 0) decide(c, { good: false, note: '你還在猶豫的時候，App 已經掛了。' });
+  }, 100);
+}
+
+// ───── App 預覽：核准的功能會長出來，壞掉的會標紅 ─────
+const PLAN = ['登入', '菜單分類', '購物車', '運費', '付款'];
+function renderPhone() {
+  const has = n => shipped.find(s => s.name.startsWith(n));
+  let html = `<div class="bar"><span>${fmt(clock)}</span><span>5G ▮▮▮</span></div><div class="brand">飯飯外送</div><div class="stars">版本 0.3（今天 18:00 上線）</div>`;
+  for (const n of PLAN) {
+    const s = has(n);
+    html += s ? `<div class="feat ${s.broken ? 'broken' : ''}">${n === '登入' ? '🔐 ' : n === '購物車' ? '🛒 ' : n === '付款' ? '💳 ' : '• '}${esc(s.name)}</div>`
+              : `<div class="placeholder">${n}（還沒做）</div>`;
+  }
+  for (const s of shipped.filter(s => !PLAN.some(p => s.name.startsWith(p)))) html += `<div class="feat ${s.broken ? 'broken' : ''}">✨ ${esc(s.name)}</div>`;
+  $('phone').innerHTML = html;
+  $('shipBar').style.width = (PLAN.filter(has).length / PLAN.length * 100) + '%';
+}
+
+// ───── 18:00 上線：評論與星等 ─────
+function release() {
+  running = false; clearInterval(fireTimer);
+  const done = PLAN.filter(n => shipped.find(s => s.name.startsWith(n) && !s.broken)).length;
+  const late = queue.length;
+  let stars = 2.6 + done * 0.45 - bugs.length * 0.5 - late * 0.1;
+  stars = Math.max(1, Math.min(5, Math.round(stars * 10) / 10));
+  const reviews = [];
+  if (bugs.length === 0) reviews.push(['★★★★★', '用起來很順，外送員也很準時！']);
+  for (const b of bugs.slice(0, 3)) reviews.push(['★☆☆☆☆', reviewFor(b)]);
+  if (done >= 4) reviews.push(['★★★★☆', '新版終於可以用購物車一次點好幾家了']);
+  if (late) reviews.push(['★★★☆☆', `等了好久的功能還是沒出來（還有 ${late} 件事沒處理）`]);
+  const verdict = stars >= 4 ? '上線成功' : stars >= 3 ? '勉強過關' : '上線翻車';
+  $('reviews').innerHTML = reviews.map(r => `<div class="rev"><span class="st">${r[0]}</span>　${esc(r[1])}</div>`).join('');
+  const o = document.createElement('div');
+  o.className = 'overlay';
+  o.innerHTML = `<div class="sheet"><div style="color:var(--dim)">18:00　飯飯外送 v0.3 上線</div><h1>${verdict}</h1>
+    <div class="big">★ ${stars.toFixed(1)}</div>
+    <p>完成的功能 ${done}/${PLAN.length}　漏掉的錯誤 ${bugs.length}　沒處理完 ${late} 件　主管信任 ${trust}　壓力 ${stress}</p>
+    <ul>${reviews.map(r => `<li>${r[0]}　${esc(r[1])}</li>`).join('')}</ul>
+    <p style="color:var(--dim)">這是網頁原型，只有一天。正式版在 Unity 裡會有三天，前一天放過的錯誤會在後一天爆炸。</p>
+    <div class="choices"><button class="primary" id="again">再上一次班</button></div></div>`;
+  document.body.appendChild(o);
+  $('again').onclick = () => location.reload();
+}
+function reviewFor(b) {
+  if (b.includes('密碼')) return '新聞說這家的會員資料被駭了？？我要刪帳號';
+  if (b.includes('測試') || b.includes('CartTest')) return '滿千折百變成滿千折千？我賺到了但你們公司還好嗎';
+  if (b.includes('個資') || b.includes('電話')) return '為什麼陌生人打電話給我說要送餐';
+  if (b.includes('3 份')) return '點三份只算兩份，老闆會哭吧（我是不會）';
+  if (b.includes('外送費')) return '半夜免運費耶！……隔天就修掉了';
+  if (b.includes('CPU')) return '晚餐時間 App 打不開，餓死';
+  if (b.includes('扣款')) return '我被扣了兩次錢！！！';
+  return '有點怪怪的，說不上來';
+}
+
+$('start').onclick = () => {
+  $('intro').remove();
+  renderQueue(); renderPhone(); renderIdle(); stat();
+  running = true; requestAnimationFrame(tick);
+};
+renderQueue(); renderPhone(); renderIdle();
+</script>
